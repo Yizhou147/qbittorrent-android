@@ -40,6 +40,8 @@ RUN chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager && \
 WORKDIR /build
 RUN curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" | tar xz && \
     cd openssl-3.3.2 && \
+    export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
+    export PATH=${TOOLCHAIN}/bin:${PATH} && \
     ./Configure android-arm64 -D__ANDROID_API__=24 \
         --prefix=${PREFIX} --openssldir=${PREFIX}/ssl \
         no-shared no-tests no-ui-console -fPIC && \
