@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.QBittorrent" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#1D7DD4</item>
+        <item name="colorPrimaryVariant">#1565C0</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#4CAF50</item>
+        <item name="android:statusBarColor">#1565C0</item>
+    </style>
+</resources>

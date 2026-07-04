@@ -1,0 +1,251 @@
+name: Build qBittorrent Android
+
+on:
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      qbittorrent_version:
+        description: 'qBittorrent 版本标签'
+        required: false
+        default: 'v5.0.2'
+      libtorrent_version:
+        description: 'libtorrent 版本标签'
+        required: false
+        default: 'v2.0.10'
+
+  # 也支持定时构建 (可选)
+  # schedule:
+  #   - cron: '0 0 1 * *'  # 每月1号
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          sdkmanager "ndk;27.0.12077973" "build-tools;34.0.0" "platforms;android-34"
+          echo "ANDROID_NDK=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/deps/openssl
+            ${{ github.workspace }}/deps/boost
+          key: android-deps-${{ hashFiles('.github/workflows/build-android.yml') }}
+          restore-keys: |
+            android-deps-
+
+      - name: Set environment variables
+        run: |
+          echo "PREFIX=${{ github.workspace }}/output" >> $GITHUB_ENV
+          echo "DEPS=${{ github.workspace }}/deps" >> $GITHUB_ENV
+          echo "TOOLCHAIN=${{ env.ANDROID_NDK }}/toolchains/llvm/prebuilt/linux-x86_64" >> $GITHUB_ENV
+          echo "CC=${{ env.ANDROID_NDK }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang" >> $GITHUB_ENV
+          echo "CXX=${{ env.ANDROID_NDK }}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++" >> $GITHUB_ENV
+          echo "AR=${{ env.ANDROID_NDK }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar" >> $GITHUB_ENV
+          echo "RANLIB=${{ env.ANDROID_NDK }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib" >> $GITHUB_ENV
+          echo "STRIP=${{ env.ANDROID_NDK }}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" >> $GITHUB_ENV
+          mkdir -p ${{ github.workspace }}/output ${{ github.workspace }}/deps
+
+      # ==================== OpenSSL ====================
+      - name: Build OpenSSL
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd ${{ github.workspace }}/deps
+          curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" | tar xz
+          cd openssl-3.3.2
+
+          ./Configure android-arm64 -D__ANDROID_API__=24 \
+            --prefix=${PREFIX} --openssldir=${PREFIX}/ssl \
+            no-shared no-tests no-ui-console -fPIC
+
+          make -j$(nproc) build_libs
+          make install_sw
+          echo "✅ OpenSSL done"
+
+      # ==================== Boost ====================
+      - name: Build Boost
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd ${{ github.workspace }}/deps
+          curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz" | tar xz
+          cd boost_1_86_0
+
+          ./bootstrap.sh --with-toolset=clang
+
+          cat > user-config.jam << 'EOF'
+          using clang : android
+            : ${{ env.CXX }}
+            : <archiver>${{ env.AR }}
+              <ranlib>${{ env.RANLIB }}
+              <linkflags>-llog
+              <compileflags>--target=aarch64-linux-android24
+              <compileflags>-fPIC
+            ;
+          EOF
+
+          ./b2 install \
+            --prefix=${PREFIX} \
+            --with-system --with-filesystem --with-thread \
+            --with-date_time --with-chrono --with-random \
+            --with-program_options \
+            --user-config=user-config.jam \
+            toolset=clang-android \
+            link=static threading=multi variant=release \
+            runtime-link=static target-os=android \
+            architecture=arm address-model=64 \
+            cxxflags="-std=c++17 --target=aarch64-linux-android24" \
+            linkflags="--target=aarch64-linux-android24 -llog" \
+            -j$(nproc) --abbreviate-paths -d0
+          echo "✅ Boost done"
+
+      # ==================== libtorrent ====================
+      - name: Build libtorrent
+        run: |
+          QBT_LT_VERSION=${{ github.event.inputs.libtorrent_version || 'v2.0.10' }}
+          cd ${{ github.workspace }}
+          git clone --depth 1 --branch ${QBT_LT_VERSION} \
+            https://github.com/arvidn/libtorrent.git deps/libtorrent-src
+
+          cd deps/libtorrent-src
+          mkdir build && cd build
+
+          cmake .. \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_INSTALL_PREFIX=${PREFIX} \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DBoost_INCLUDE_DIR=${PREFIX}/include \
+            -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
+            -DBoost_FILESYSTEM_LIBRARY=${PREFIX}/lib/libboost_filesystem.a \
+            -DBoost_THREAD_LIBRARY=${PREFIX}/lib/libboost_thread.a \
+            -DBoost_DATE_TIME_LIBRARY=${PREFIX}/lib/libboost_date_time.a \
+            -DBoost_CHRONO_LIBRARY=${PREFIX}/lib/libboost_chrono.a \
+            -DBoost_RANDOM_LIBRARY=${PREFIX}/lib/libboost_random.a \
+            -DBoost_PROGRAM_OPTIONS_LIBRARY=${PREFIX}/lib/libboost_program_options.a \
+            -DOPENSSL_ROOT_DIR=${PREFIX} \
+            -DOPENSSL_INCLUDE_DIR=${PREFIX}/include \
+            -DOPENSSL_CRYPTO_LIBRARY=${PREFIX}/lib/libcrypto.a \
+            -DOPENSSL_SSL_LIBRARY=${PREFIX}/lib/libssl.a \
+            -Dstatic_runtime=ON \
+            -Dencryption=ON
+
+          cmake --build . -j$(nproc)
+          cmake --install .
+          echo "✅ libtorrent done"
+
+      # ==================== qBittorrent ====================
+      - name: Build qBittorrent
+        run: |
+          QBT_VERSION=${{ github.event.inputs.qbittorrent_version || 'v5.0.2' }}
+          cd ${{ github.workspace }}
+          git clone --depth 1 --branch ${QBT_VERSION} \
+            https://github.com/qbittorrent/qBittorrent.git deps/qbittorrent-src
+
+          cd deps/qbittorrent-src
+          mkdir build && cd build
+
+          cmake .. \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-24 \
+            -DCMAKE_INSTALL_PREFIX=${PREFIX} \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DGUI=OFF \
+            -DWEBUI=ON \
+            -DTESTING=OFF \
+            -DBoost_INCLUDE_DIR=${PREFIX}/include \
+            -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
+            -DBoost_FILESYSTEM_LIBRARY=${PREFIX}/lib/libboost_filesystem.a \
+            -DBoost_THREAD_LIBRARY=${PREFIX}/lib/libboost_thread.a \
+            -DBoost_DATE_TIME_LIBRARY=${PREFIX}/lib/libboost_date_time.a \
+            -DBoost_CHRONO_LIBRARY=${PREFIX}/lib/libboost_chrono.a \
+            -DBoost_RANDOM_LIBRARY=${PREFIX}/lib/libboost_random.a \
+            -DBoost_PROGRAM_OPTIONS_LIBRARY=${PREFIX}/lib/libboost_program_options.a \
+            -DOPENSSL_ROOT_DIR=${PREFIX} \
+            -DOPENSSL_INCLUDE_DIR=${PREFIX}/include \
+            -DOPENSSL_CRYPTO_LIBRARY=${PREFIX}/lib/libcrypto.a \
+            -DOPENSSL_SSL_LIBRARY=${PREFIX}/lib/libssl.a \
+            -DLibtorrentRasterbar_DIR=${PREFIX}/lib/cmake/LibtorrentRasterbar
+
+          cmake --build . -j$(nproc)
+          cmake --install .
+          echo "✅ qBittorrent done"
+
+      # ==================== 打包产物 ====================
+      - name: Package artifacts
+        run: |
+          mkdir -p ${{ github.workspace }}/release/lib
+
+          # 复制 binary
+          cp ${{ env.PREFIX }}/bin/qbittorrent-nox ${{ github.workspace }}/release/
+
+          # 复制共享库 (如果有)
+          cp ${{ env.PREFIX }}/lib/*.so ${{ github.workspace }}/release/lib/ 2>/dev/null || true
+
+          # Strip
+          ${{ env.STRIP }} ${{ github.workspace }}/release/qbittorrent-nox 2>/dev/null || true
+
+          # 生成安装脚本
+          cat > ${{ github.workspace }}/release/install.sh << 'SCRIPT'
+          #!/bin/bash
+          # qBittorrent Android 安装脚本 (需要 root)
+          set -e
+          TARGET="/data/local/qbittorrent"
+          echo "=== 安装 qBittorrent 到 $TARGET ==="
+          mkdir -p "$TARGET"
+          cp qbittorrent-nox "$TARGET/"
+          chmod 755 "$TARGET/qbittorrent-nox"
+          cat > "$TARGET/start.sh" << 'EOF'
+          #!/system/bin/sh
+          cd /data/local/qbittorrent
+          ./qbittorrent-nox --profile=. --save-path=/sdcard/Downloads/qBittorrent --webui-port=8080 --daemon
+          EOF
+          chmod 755 "$TARGET/start.sh"
+          echo "✅ 安装完成!"
+          echo "启动: adb shell $TARGET/start.sh"
+          echo "WebUI: http://localhost:8080"
+          echo "默认账号: admin / adminadmin"
+          SCRIPT
+          chmod +x ${{ github.workspace }}/release/install.sh
+
+          # 打包
+          cd ${{ github.workspace }}/release
+          tar czf ${{ github.workspace }}/qbittorrent-android-arm64.tar.gz .
+
+      # ==================== 上传产物 ====================
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qbittorrent-android-arm64
+          path: ${{ github.workspace }}/qbittorrent-android-arm64.tar.gz
+          retention-days: 90
+
+      # ==================== 创建 Release (可选) ====================
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ github.workspace }}/qbittorrent-android-arm64.tar.gz
+          generate_release_notes: true
