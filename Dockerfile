@@ -30,7 +30,10 @@ RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
 
 ENV PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 
-RUN yes | sdkmanager --licenses > /dev/null 2>&1 && \
+# 确保 sdkmanager 有执行权限并接受许可
+RUN chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager && \
+    chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/avdmanager && \
+    yes | sdkmanager --licenses > /dev/null 2>&1 || true && \
     sdkmanager "platform-tools" "platforms;android-34" "ndk;27.0.12077973" "build-tools;34.0.0"
 
 # ===== 编译 OpenSSL =====
