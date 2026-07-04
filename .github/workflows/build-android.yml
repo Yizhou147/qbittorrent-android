@@ -35,11 +35,20 @@ jobs:
           sdkmanager "ndk;27.0.12077973" "build-tools;34.0.0" "platforms;android-34"
           echo "ANDROID_NDK=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
 
-      - name: Install Qt5 (required by qBittorrent)
+      - name: Install Qt5 for Android (required by qBittorrent)
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq qtbase5-dev qttools5-dev qttools5-dev-tools libqt5sql5-sqlite
-          echo "Qt5 installed"
+          # 安装 aqtinstall 工具
+          pip install aqtinstall
+
+          # 安装 Android ARM64 版本的 Qt 5.15.2
+          aqt install-qt linux android 5.15.2 android_arm64_v8a -m qttools
+
+          # 设置 Qt5 路径
+          QT5_DIR="${{ github.workspace }}/5.15.2/android_arm64_v8a"
+          echo "Qt5_DIR=${QT5_DIR}/lib/cmake/Qt5" >> $GITHUB_ENV
+          echo "CMAKE_PREFIX_PATH=${QT5_DIR}" >> $GITHUB_ENV
+          echo "ANDROID_QT5_DIR=${QT5_DIR}" >> $GITHUB_ENV
+          echo "Qt5 installed for Android ARM64"
 
       - name: Set environment variables
         run: |
@@ -217,10 +226,10 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=${PREFIX} \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_STANDARD=17 \
-            -DCMAKE_FIND_ROOT_PATH="${PREFIX};/usr" \
+            -DCMAKE_FIND_ROOT_PATH="${PREFIX};${ANDROID_QT5_DIR};/usr" \
             -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
-            -DCMAKE_DISABLE_FIND_PACKAGE_Qt5=ON \
-            -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON \
+            -DCMAKE_PREFIX_PATH="${ANDROID_QT5_DIR}" \
+            -DQt5_DIR=${ANDROID_QT5_DIR}/lib/cmake/Qt5 \
             -DGUI=OFF \
             -DWEBUI=ON \
             -DTESTING=OFF \
