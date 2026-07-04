@@ -6,7 +6,7 @@ on:
       qbittorrent_version:
         description: 'qBittorrent 版本标签'
         required: false
-        default: 'release-5.2.2'
+        default: 'release-4.6.7'
       libtorrent_version:
         description: 'libtorrent 版本标签'
         required: false
@@ -35,11 +35,11 @@ jobs:
           sdkmanager "ndk;27.0.12077973" "build-tools;34.0.0" "platforms;android-34"
           echo "ANDROID_NDK=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
 
-      - name: Install Qt6 (required by qBittorrent even for headless)
+      - name: Install Qt5 (required by qBittorrent)
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq qt6-base-dev qt6-tools-dev qt6-l10n-tools libqt6sql6-sqlite
-          echo "Qt6 installed for host"
+          sudo apt-get install -y -qq qtbase5-dev qttools5-dev qttools5-dev-tools libqt5sql5-sqlite
+          echo "Qt5 installed"
 
       - name: Set environment variables
         run: |
@@ -201,19 +201,13 @@ jobs:
       # ==================== qBittorrent ====================
       - name: Build qBittorrent
         run: |
-          QBT_VERSION=${{ github.event.inputs.qbittorrent_version || 'release-5.2.2' }}
+          QBT_VERSION=${{ github.event.inputs.qbittorrent_version || 'release-4.6.7' }}
           cd ${{ github.workspace }}
           git clone --depth 1 --branch ${QBT_VERSION} \
             https://github.com/qbittorrent/qBittorrent.git deps/qbittorrent-src
 
           cd deps/qbittorrent-src
           mkdir build && cd build
-
-          # Patch: 降低 Qt6 版本要求 (Ubuntu 22.04 的 Qt6 是 6.4.2)
-          sed -i 's/set(minQt6Version 6.6.0)/set(minQt6Version 6.4.0)/' ../CMakeLists.txt
-
-          # Host Qt6 检测到 ANDROID 后会找 Qt6AndroidMacros.cmake，创建空文件骗过它
-          touch /usr/lib/x86_64-linux-gnu/cmake/Qt6Core/Qt6AndroidMacros.cmake
 
           cmake .. \
             -G Ninja \
@@ -236,7 +230,7 @@ jobs:
             -DGUI=OFF \
             -DWEBUI=ON \
             -DTESTING=OFF \
-            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
+
             -DBoost_INCLUDE_DIR=${PREFIX}/include \
             -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
             -DBoost_FILESYSTEM_LIBRARY=${PREFIX}/lib/libboost_filesystem.a \
