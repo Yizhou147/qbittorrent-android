@@ -69,12 +69,19 @@ jobs:
       - name: Build OpenSSL
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          # OpenSSL Configure 需要在 PATH 中找到 NDK 工具链
           export PATH="${TOOLCHAIN}/bin:${PATH}"
+
+          # NDK 只有 clang，OpenSSL 的 Configure 硬找 gcc，做个符号链接
+          ln -sf ${TOOLCHAIN}/bin/aarch64-linux-android24-clang ${TOOLCHAIN}/bin/aarch64-linux-android-gcc
+          ln -sf ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ ${TOOLCHAIN}/bin/aarch64-linux-android-g++
 
           cd ${{ github.workspace }}/deps
           curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" | tar xz
           cd openssl-3.3.2
+
+          # 验证编译器
+          which aarch64-linux-android-gcc
+          aarch64-linux-android-gcc --version | head -1
 
           ./Configure android-arm64 -D__ANDROID_API__=24 \
             --prefix=${PREFIX} --openssldir=${PREFIX}/ssl \
