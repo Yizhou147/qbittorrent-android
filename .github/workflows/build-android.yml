@@ -35,6 +35,12 @@ jobs:
           sdkmanager "ndk;27.0.12077973" "build-tools;34.0.0" "platforms;android-34"
           echo "ANDROID_NDK=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
 
+      - name: Install Qt6 (required by qBittorrent even for headless)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq qt6-base-dev qt6-tools-dev qt6-l10n-tools libqt6sql6-sqlite
+          echo "Qt6 installed for host"
+
       - name: Set environment variables
         run: |
           TOOLCHAIN="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64"
