@@ -53,6 +53,7 @@ RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar
     ./bootstrap.sh --with-toolset=clang && \
     echo "using clang : android : ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ : <archiver>${TOOLCHAIN}/bin/llvm-ar <ranlib>${TOOLCHAIN}/bin/llvm-ranlib <linkflags>-llog <compileflags>--target=aarch64-linux-android24 <compileflags>-fPIC ;" > user-config.jam && \
     cat user-config.jam && \
+    ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ --version && \
     ./b2 install \
         --prefix=${PREFIX} \
         --with-system --with-filesystem --with-thread \
