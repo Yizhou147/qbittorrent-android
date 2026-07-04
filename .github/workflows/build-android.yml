@@ -140,13 +140,24 @@ jobs:
           file ${PREFIX}/lib/libboost_system.a
           echo "✅ Boost done"
 
+      # ==================== 验证依赖 ====================
+      - name: Verify dependencies
+        run: |
+          echo "=== 检查 OpenSSL ==="
+          ls -la ${PREFIX}/lib/libcrypto.a ${PREFIX}/lib/libssl.a 2>/dev/null || echo "❌ OpenSSL 库缺失"
+          ls ${PREFIX}/include/openssl/ssl.h 2>/dev/null || echo "❌ OpenSSL 头文件缺失"
+          echo "=== 检查 Boost ==="
+          ls -la ${PREFIX}/lib/libboost_system.a ${PREFIX}/lib/libboost_filesystem.a 2>/dev/null || echo "❌ Boost 库缺失"
+          echo "=== 检查 output 目录 ==="
+          find ${PREFIX} -name '*.a' | head -20
+
       # ==================== libtorrent ====================
       - name: Build libtorrent
         run: |
           QBT_LT_VERSION=${{ github.event.inputs.libtorrent_version || 'v2.0.10' }}
           cd ${{ github.workspace }}
-          # 每次都克隆源码（不用缓存，体积小且保证干净）
-          git clone --depth 1 --branch ${QBT_LT_VERSION} \
+          # 必须 --recursive 拉取子模块（try_signal 等）
+          git clone --depth 1 --recursive --branch ${QBT_LT_VERSION} \
             https://github.com/arvidn/libtorrent.git deps/libtorrent-src
 
           cd deps/libtorrent-src
