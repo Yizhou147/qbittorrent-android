@@ -217,7 +217,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=${PREFIX} \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_STANDARD=17 \
-            -DCMAKE_FIND_ROOT_PATH=${PREFIX} \
+            -DCMAKE_FIND_ROOT_PATH="${PREFIX};/usr" \
             -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
             -DGUI=OFF \
             -DWEBUI=ON \
