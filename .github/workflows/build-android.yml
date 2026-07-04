@@ -209,6 +209,12 @@ jobs:
           cd deps/qbittorrent-src
           mkdir build && cd build
 
+          # Patch: 降低 Qt6 版本要求 (Ubuntu 22.04 的 Qt6 是 6.4.2)
+          sed -i 's/set(minQt6Version 6.6.0)/set(minQt6Version 6.4.0)/' ../CMakeLists.txt
+
+          # 告诉 CMake 在 host 上找 Qt6 (不是 Android sysroot)
+          export CMAKE_PREFIX_PATH="/usr/lib/x86_64-linux-gnu/cmake/Qt6:${CMAKE_PREFIX_PATH}"
+
           cmake .. \
             -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
@@ -220,6 +226,7 @@ jobs:
             -DGUI=OFF \
             -DWEBUI=ON \
             -DTESTING=OFF \
+            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
             -DBoost_INCLUDE_DIR=${PREFIX}/include \
             -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
             -DBoost_FILESYSTEM_LIBRARY=${PREFIX}/lib/libboost_filesystem.a \
