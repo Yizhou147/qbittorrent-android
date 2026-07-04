@@ -21,251 +21,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android NDK
-        run: |
-          sdkmanager "ndk;27.0.12077973" "build-tools;34.0.0" "platforms;android-34"
-          echo "ANDROID_NDK=$ANDROID_HOME/ndk/27.0.12077973" >> $GITHUB_ENV
-
-      - name: Install Qt5 for Android (required by qBittorrent)
-        run: |
-          # 安装 aqtinstall 工具
-          pip install aqtinstall
-
-          # 安装 Android ARM64 版本的 Qt 5.15.2
-          aqt install-qt linux android 5.15.2 android_arm64_v8a
-
-          # 设置 Qt5 路径
-          QT5_DIR="${{ github.workspace }}/5.15.2/android_arm64_v8a"
-          echo "Qt5_DIR=${QT5_DIR}/lib/cmake/Qt5" >> $GITHUB_ENV
-          echo "CMAKE_PREFIX_PATH=${QT5_DIR}" >> $GITHUB_ENV
-          echo "ANDROID_QT5_DIR=${QT5_DIR}" >> $GITHUB_ENV
-          echo "Qt5 installed for Android ARM64"
-
-      - name: Set environment variables
-        run: |
-          TOOLCHAIN="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64"
-          SYSROOT="${TOOLCHAIN}/sysroot"
-          echo "PREFIX=${{ github.workspace }}/output" >> $GITHUB_ENV
-          echo "TOOLCHAIN=${TOOLCHAIN}" >> $GITHUB_ENV
-          echo "SYSROOT=${SYSROOT}" >> $GITHUB_ENV
-          echo "CC=${TOOLCHAIN}/bin/aarch64-linux-android24-clang" >> $GITHUB_ENV
-          echo "CXX=${TOOLCHAIN}/bin/aarch64-linux-android24-clang++" >> $GITHUB_ENV
-          echo "AR=${TOOLCHAIN}/bin/llvm-ar" >> $GITHUB_ENV
-          echo "RANLIB=${TOOLCHAIN}/bin/llvm-ranlib" >> $GITHUB_ENV
-          echo "STRIP=${TOOLCHAIN}/bin/llvm-strip" >> $GITHUB_ENV
-          # 把 NDK 工具链加到 PATH，确保所有步骤都能找到编译器
-          echo "${TOOLCHAIN}/bin" >> $GITHUB_PATH
-          mkdir -p ${{ github.workspace }}/output ${{ github.workspace }}/deps
-
-      # ==================== Cache ====================
-      # 缓存编译好的依赖，避免每次都重新编译
-      - name: Cache all compiled dependencies
-        id: cache-deps
+      - name: Cache Docker layers
         uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}/output
-          key: qbt-android-deps-v1-${{ runner.os }}
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
 
-      # ==================== OpenSSL ====================
-      # 关键：用 linux-aarch64 目标 + 显式 CC/CXX/AR
-      # 不用 android-arm64 (它硬找 NDK gcc)
-      # 不用 --cross-compile-prefix (会和 CC 冲突导致路径拼接错误)
-      - name: Build OpenSSL
-        if: steps.cache-deps.outputs.cache-hit != 'true'
+      - name: Build qBittorrent using Docker
         run: |
-          cd ${{ github.workspace }}/deps
-          curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" | tar xz
-          cd openssl-3.3.2
+          # 构建 Docker 镜像
+          docker build -t qbittorrent-android-builder .
 
-          # 显式设置编译器，确保 OpenSSL 的 Perl Configure 能找到
-          export CC=${TOOLCHAIN}/bin/aarch64-linux-android24-clang
-          export CXX=${TOOLCHAIN}/bin/aarch64-linux-android24-clang++
-          export AR=${TOOLCHAIN}/bin/llvm-ar
-          export RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
+          # 创建临时容器并提取产物
+          docker create --name qbt-temp qbittorrent-android-builder
+          mkdir -p ${{ github.workspace }}/output
+          docker cp qbt-temp:/output/qbittorrent-nox ${{ github.workspace }}/output/
+          docker rm qbt-temp
 
-          # 验证编译器可用
-          ${CC} --version | head -1
+          echo "✅ qBittorrent 编译完成"
 
-          # linux-aarch64 + __ANDROID_API__ 让 NDK clang 自动链接 Android sysroot
-          ./Configure linux-aarch64 \
-            -D__ANDROID_API__=24 \
-            --prefix=${PREFIX} --openssldir=${PREFIX}/ssl \
-            no-shared no-tests no-ui-console -fPIC
-
-          make -j$(nproc) build_libs
-          make install_sw
-
-          # 验证产物是 ARM64
-          file ${PREFIX}/lib/libcrypto.a
-          echo "✅ OpenSSL done"
-
-      # ==================== Boost ====================
-      - name: Build Boost
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: |
-          cd ${{ github.workspace }}/deps
-          curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz" | tar xz
-          cd boost_1_86_0
-
-          # bootstrap 用 clang 工具集
-          export PATH="${TOOLCHAIN}/bin:${PATH}"
-          ./bootstrap.sh --with-toolset=clang
-
-          # user-config.jam: 指定交叉编译器
-          # 注意: EOF 不加引号，变量会被 shell 展开
-          cat > user-config.jam << EOF
-          using clang : android
-            : ${CXX}
-            : <archiver>${AR}
-              <ranlib>${RANLIB}
-              <compileflags>--target=aarch64-linux-android24
-              <compileflags>--sysroot=${SYSROOT}
-              <compileflags>-fPIC
-              <linkflags>--target=aarch64-linux-android24
-              <linkflags>--sysroot=${SYSROOT}
-              <linkflags>-llog
-            ;
-          EOF
-
-          ./b2 install \
-            --prefix=${PREFIX} \
-            --with-system --with-filesystem --with-thread \
-            --with-date_time --with-chrono --with-random \
-            --with-program_options \
-            --user-config=user-config.jam \
-            --layout=system \
-            toolset=clang-android \
-            link=static threading=multi variant=release \
-            runtime-link=static target-os=android \
-            architecture=arm address-model=64 \
-            cxxflags="-std=c++17" \
-            -j$(nproc) --abbreviate-paths -d0
-
-          # 验证产物
-          ls -la ${PREFIX}/lib/libboost_*.a
-          file ${PREFIX}/lib/libboost_system.a
-          echo "✅ Boost done"
-
-      # ==================== 验证依赖 ====================
-      - name: Verify dependencies
-        run: |
-          echo "=== 检查 OpenSSL ==="
-          ls -la ${PREFIX}/lib/libcrypto.a ${PREFIX}/lib/libssl.a 2>/dev/null || echo "❌ OpenSSL 库缺失"
-          ls ${PREFIX}/include/openssl/ssl.h 2>/dev/null || echo "❌ OpenSSL 头文件缺失"
-          echo "=== 检查 Boost ==="
-          ls -la ${PREFIX}/lib/libboost_system.a ${PREFIX}/lib/libboost_filesystem.a 2>/dev/null || echo "❌ Boost 库缺失"
-          echo "=== 检查 output 目录 ==="
-          find ${PREFIX} -name '*.a' | head -20
-
-      # ==================== libtorrent ====================
-      - name: Build libtorrent
-        run: |
-          QBT_LT_VERSION=${{ github.event.inputs.libtorrent_version || 'v2.0.13' }}
-          cd ${{ github.workspace }}
-          # 必须 --recursive 拉取子模块（try_signal 等）
-          git clone --depth 1 --recursive --branch ${QBT_LT_VERSION} \
-            https://github.com/arvidn/libtorrent.git deps/libtorrent-src
-
-          cd deps/libtorrent-src
-          mkdir build && cd build
-
-          cmake .. \
-            -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-24 \
-            -DCMAKE_INSTALL_PREFIX=${PREFIX} \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_STANDARD=17 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DBoost_INCLUDE_DIR=${PREFIX}/include \
-            -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
-            -DBoost_FILESYSTEM_LIBRARY=${PREFIX}/lib/libboost_filesystem.a \
-            -DBoost_THREAD_LIBRARY=${PREFIX}/lib/libboost_thread.a \
-            -DBoost_DATE_TIME_LIBRARY=${PREFIX}/lib/libboost_date_time.a \
-            -DBoost_CHRONO_LIBRARY=${PREFIX}/lib/libboost_chrono.a \
-            -DBoost_RANDOM_LIBRARY=${PREFIX}/lib/libboost_random.a \
-            -DBoost_PROGRAM_OPTIONS_LIBRARY=${PREFIX}/lib/libboost_program_options.a \
-            -DOPENSSL_ROOT_DIR=${PREFIX} \
-            -DOPENSSL_INCLUDE_DIR=${PREFIX}/include \
-            -DOPENSSL_CRYPTO_LIBRARY=${PREFIX}/lib/libcrypto.a \
-            -DOPENSSL_SSL_LIBRARY=${PREFIX}/lib/libssl.a \
-            -DZLIB_ROOT=${SYSROOT}/usr \
-            -Dstatic_runtime=ON \
-            -Dencryption=ON
-
-          cmake --build . -j$(nproc)
-          cmake --install .
-          echo "✅ libtorrent done"
-
-      # ==================== qBittorrent ====================
-      - name: Build qBittorrent
-        run: |
-          QBT_VERSION=${{ github.event.inputs.qbittorrent_version || 'release-4.6.7' }}
-          cd ${{ github.workspace }}
-          git clone --depth 1 --branch ${QBT_VERSION} \
-            https://github.com/qbittorrent/qBittorrent.git deps/qbittorrent-src
-
-          cd deps/qbittorrent-src
-          mkdir build && cd build
-
-          cmake .. \
-            -G Ninja \
-            -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-24 \
-            -DCMAKE_INSTALL_PREFIX=${PREFIX} \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_STANDARD=17 \
-            -DCMAKE_FIND_ROOT_PATH="${PREFIX};${ANDROID_QT5_DIR};/usr" \
-            -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
-            -DCMAKE_PREFIX_PATH="${ANDROID_QT5_DIR}" \
-            -DQt5_DIR=${ANDROID_QT5_DIR}/lib/cmake/Qt5 \
-            -DGUI=OFF \
-            -DWEBUI=ON \
-            -DTESTING=OFF \
-
-            -DBoost_INCLUDE_DIR=${PREFIX}/include \
-            -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
-            -DBoost_FILESYSTEM_LIBRARY=${PREFIX}/lib/libboost_filesystem.a \
-            -DBoost_THREAD_LIBRARY=${PREFIX}/lib/libboost_thread.a \
-            -DBoost_DATE_TIME_LIBRARY=${PREFIX}/lib/libboost_date_time.a \
-            -DBoost_CHRONO_LIBRARY=${PREFIX}/lib/libboost_chrono.a \
-            -DBoost_RANDOM_LIBRARY=${PREFIX}/lib/libboost_random.a \
-            -DBoost_PROGRAM_OPTIONS_LIBRARY=${PREFIX}/lib/libboost_program_options.a \
-            -DOPENSSL_ROOT_DIR=${PREFIX} \
-            -DOPENSSL_INCLUDE_DIR=${PREFIX}/include \
-            -DOPENSSL_CRYPTO_LIBRARY=${PREFIX}/lib/libcrypto.a \
-            -DOPENSSL_SSL_LIBRARY=${PREFIX}/lib/libssl.a \
-            -DLibtorrentRasterbar_DIR=${PREFIX}/lib/cmake/LibtorrentRasterbar \
-            -DZLIB_ROOT=${SYSROOT}/usr
-
-          cmake --build . -j$(nproc)
-          cmake --install .
-          echo "✅ qBittorrent done"
-
-      # ==================== 打包 ====================
       - name: Package artifacts
         run: |
           mkdir -p ${{ github.workspace }}/release/lib
 
           # 复制二进制
-          cp ${PREFIX}/bin/qbittorrent-nox ${{ github.workspace }}/release/
-
-          # 复制共享库（如果有）
-          cp ${PREFIX}/lib/*.so ${{ github.workspace }}/release/lib/ 2>/dev/null || true
+          cp ${{ github.workspace }}/output/qbittorrent-nox ${{ github.workspace }}/release/
 
           # Strip 减小体积
-          ${STRIP} ${{ github.workspace }}/release/qbittorrent-nox 2>/dev/null || true
+          strip ${{ github.workspace }}/release/qbittorrent-nox 2>/dev/null || true
 
           # 生成安装脚本
           cat > ${{ github.workspace }}/release/install.sh << 'SCRIPT'
@@ -298,7 +86,6 @@ jobs:
           ls -lh ${{ github.workspace }}/qbittorrent-android-arm64.tar.gz
           echo "✅ 打包完成"
 
-      # ==================== 上传 ====================
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
