@@ -39,7 +39,6 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq qtbase5-dev qttools5-dev qttools5-dev-tools libqt5sql5-sqlite
-          echo "Qt5_DIR=/usr/lib/x86_64-linux-gnu/cmake/Qt5" >> $GITHUB_ENV
           echo "Qt5 installed"
 
       - name: Set environment variables
@@ -220,7 +219,8 @@ jobs:
             -DCMAKE_CXX_STANDARD=17 \
             -DCMAKE_FIND_ROOT_PATH="${PREFIX};/usr" \
             -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
-            -DQt5_DIR=/usr/lib/x86_64-linux-gnu/cmake/Qt5 \
+            -DCMAKE_DISABLE_FIND_PACKAGE_Qt5=ON \
+            -DCMAKE_DISABLE_FIND_PACKAGE_Qt6=ON \
             -DGUI=OFF \
             -DWEBUI=ON \
             -DTESTING=OFF \
