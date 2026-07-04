@@ -51,7 +51,8 @@ RUN curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" | tar xz &&
 RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz" | tar xz && \
     cd boost_1_86_0 && \
     ./bootstrap.sh --with-toolset=clang && \
-    echo 'using clang : android : /opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++ : <archiver>/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar <ranlib>/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib <linkflags>-llog <compileflags>--target=aarch64-linux-android24 <compileflags>-fPIC ;' > user-config.jam && \
+    echo "using clang : android : ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ : <archiver>${TOOLCHAIN}/bin/llvm-ar <ranlib>${TOOLCHAIN}/bin/llvm-ranlib <linkflags>-llog <compileflags>--target=aarch64-linux-android24 <compileflags>-fPIC ;" > user-config.jam && \
+    cat user-config.jam && \
     ./b2 install \
         --prefix=${PREFIX} \
         --with-system --with-filesystem --with-thread \
@@ -64,7 +65,7 @@ RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar
         architecture=arm address-model=64 \
         cxxflags="-std=c++17 --target=aarch64-linux-android24" \
         linkflags="--target=aarch64-linux-android24 -llog" \
-        -j$(nproc) --abbreviate-paths -d0
+        -j$(nproc) --abbreviate-paths -d1
 
 # ===== 编译 libtorrent =====
 RUN git clone --depth 1 --branch v2.0.10 \
