@@ -70,7 +70,7 @@ RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar
         -j$(nproc) --abbreviate-paths -d1
 
 # ===== 编译 libtorrent =====
-RUN git clone --depth 1 --branch v2.0.10 \
+RUN git clone --depth 1 --recursive --branch v2.0.10 \
       https://github.com/arvidn/libtorrent.git /build/libtorrent && \
     cd /build/libtorrent && mkdir build && cd build && \
     cmake .. \
