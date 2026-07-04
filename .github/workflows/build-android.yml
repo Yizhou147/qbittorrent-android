@@ -73,18 +73,20 @@ jobs:
           curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" | tar xz
           cd openssl-3.3.2
 
-          # 用 linux-aarch64 目标 + CROSS_COMPILE 指向 NDK clang
-          # 这样绕过 OpenSSL 内部对 android NDK gcc 的硬检查
+          # linux-aarch64 + 显式 CC/CXX/AR，绕过 android 目标的 NDK gcc 检查
+          export CC=${TOOLCHAIN}/bin/aarch64-linux-android24-clang
+          export CXX=${TOOLCHAIN}/bin/aarch64-linux-android24-clang++
+          export AR=${TOOLCHAIN}/bin/llvm-ar
+          export RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
+
           ./Configure linux-aarch64 \
             -D__ANDROID_API__=24 \
             --prefix=${PREFIX} --openssldir=${PREFIX}/ssl \
-            no-shared no-tests no-ui-console -fPIC \
-            --cross-compile-prefix=aarch64-linux-android24-
+            no-shared no-tests no-ui-console -fPIC
 
           make -j$(nproc) build_libs
           make install_sw
 
-          # 验证
           file ${PREFIX}/lib/libcrypto.a
           echo "✅ OpenSSL done"
 
