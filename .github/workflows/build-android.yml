@@ -41,7 +41,7 @@ jobs:
           pip install aqtinstall
 
           # 安装 Android ARM64 版本的 Qt 5.15.2
-          aqt install-qt linux android 5.15.2 android_arm64_v8a -m qttools
+          aqt install-qt linux android 5.15.2 android_arm64_v8a
 
           # 设置 Qt5 路径
           QT5_DIR="${{ github.workspace }}/5.15.2/android_arm64_v8a"
