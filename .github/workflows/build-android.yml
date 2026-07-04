@@ -6,11 +6,11 @@ on:
       qbittorrent_version:
         description: 'qBittorrent 版本标签'
         required: false
-        default: 'v5.0.2'
+        default: 'release-5.2.2'
       libtorrent_version:
         description: 'libtorrent 版本标签'
         required: false
-        default: 'v2.0.10'
+        default: 'v2.0.13'
 
 jobs:
   build:
@@ -154,7 +154,7 @@ jobs:
       # ==================== libtorrent ====================
       - name: Build libtorrent
         run: |
-          QBT_LT_VERSION=${{ github.event.inputs.libtorrent_version || 'v2.0.10' }}
+          QBT_LT_VERSION=${{ github.event.inputs.libtorrent_version || 'v2.0.13' }}
           cd ${{ github.workspace }}
           # 必须 --recursive 拉取子模块（try_signal 等）
           git clone --depth 1 --recursive --branch ${QBT_LT_VERSION} \
@@ -195,7 +195,7 @@ jobs:
       # ==================== qBittorrent ====================
       - name: Build qBittorrent
         run: |
-          QBT_VERSION=${{ github.event.inputs.qbittorrent_version || 'v5.0.2' }}
+          QBT_VERSION=${{ github.event.inputs.qbittorrent_version || 'release-5.2.2' }}
           cd ${{ github.workspace }}
           git clone --depth 1 --branch ${QBT_VERSION} \
             https://github.com/qbittorrent/qBittorrent.git deps/qbittorrent-src
