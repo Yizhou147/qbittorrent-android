@@ -99,8 +99,13 @@ RUN git clone --depth 1 --branch v2.0.10 \
         -Dencryption=ON && \
     cmake --build . -j$(nproc) && cmake --install .
 
+# ===== 安装 Qt5 (qBittorrent 4.6.7 需要) =====
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    qtbase5-dev qttools5-dev qttools5-dev-tools libqt5sql5-sqlite \
+    && rm -rf /var/lib/apt/lists/*
+
 # ===== 编译 qBittorrent =====
-RUN git clone --depth 1 --branch v5.0.2 \
+RUN git clone --depth 1 --branch release-4.6.7 \
       https://github.com/qbittorrent/qBittorrent.git /build/qbittorrent && \
     cd /build/qbittorrent && mkdir build && cd build && \
     cmake .. \
