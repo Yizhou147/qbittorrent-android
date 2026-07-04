@@ -46,16 +46,7 @@ RUN curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" | tar xz &&
 RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz" | tar xz && \
     cd boost_1_86_0 && \
     ./bootstrap.sh --with-toolset=clang && \
-    cat > user-config.jam << 'EOF'
-using clang : android
-    : /opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++
-    : <archiver>/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
-      <ranlib>/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib
-      <linkflags>-llog
-      <compileflags>--target=aarch64-linux-android24
-      <compileflags>-fPIC
-    ;
-EOF
+    printf 'using clang : android\n    : /opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android24-clang++\n    : <archiver>/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar\n      <ranlib>/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ranlib\n      <linkflags>-llog\n      <compileflags>--target=aarch64-linux-android24\n      <compileflags>-fPIC\n    ;\n' > user-config.jam && \
     ./b2 install \
         --prefix=${PREFIX} \
         --with-system --with-filesystem --with-thread \
