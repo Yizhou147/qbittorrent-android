@@ -16,6 +16,7 @@ ENV STRIP=${TOOLCHAIN}/bin/llvm-strip
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl wget unzip tar python3 python3-pip \
     build-essential cmake ninja-build pkg-config \
+    clang \
     openjdk-17-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 
