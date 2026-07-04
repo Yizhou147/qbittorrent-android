@@ -115,6 +115,9 @@ RUN git clone --depth 1 --branch release-4.6.7 \
         -DCMAKE_INSTALL_PREFIX=${PREFIX} \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_STANDARD=17 \
+        -DCMAKE_FIND_ROOT_PATH="${PREFIX};/usr" \
+        -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
+        -DQt5_DIR=/usr/lib/x86_64-linux-gnu/cmake/Qt5 \
         -DGUI=OFF \
         -DWEBUI=ON \
         -DTESTING=OFF \
