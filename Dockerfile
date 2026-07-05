@@ -12,11 +12,11 @@ ENV AR=${TOOLCHAIN}/bin/llvm-ar
 ENV RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
 ENV STRIP=${TOOLCHAIN}/bin/llvm-strip
 
-# 安装基础工具
+# ===== 安装基础工具 =====
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl wget unzip tar p7zip python3 python3-pip \
     build-essential cmake ninja-build pkg-config \
-    clang \
+    clang perl \
     openjdk-17-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 
@@ -98,15 +98,59 @@ RUN git clone --depth 1 --recursive --branch v2.0.10 \
         -Dencryption=ON && \
     cmake --build . -j$(nproc) && cmake --install .
 
-# ===== 安装 Qt5 for Android (qBittorrent 4.6.7 需要) =====
-# aqtinstall 无法解析 Multi 架构格式，直接从 Qt 存档下载 qtbase
+# ===== 编译 Qt5 for Android (qBittorrent 4.6.7 需要) =====
+# Qt5 Android 预编译包已下架，需要从源码编译
 RUN cd /tmp && \
-    curl -fsSL -o qtbase.7z "https://download.qt.io/online/qtsdkrepository/linux_x64/android/qt5_5152/qt.qt5.5152.android/qtbase-Linux-RHEL_7_6-Clang-Android-Android_ANY-Multi.7z" && \
-    mkdir -p /opt/qt5 && cd /opt/qt5 && \
-    7z x /tmp/qtbase.7z -o/opt/qt5 -y && \
-    rm /tmp/qtbase.7z && \
-    ls -la /opt/qt5/ && \
-    find /opt/qt5 -name "Qt5Config.cmake" -o -name "libQt5Core.so" | head -5
+    curl -fsSL -o qt5-src.tar.xz "https://download.qt.io/official_releases/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz" && \
+    tar xf qt5-src.tar.xz && \
+    mv qt-everywhere-src-5.15.2 /opt/qt5-src && \
+    rm qt5-src.tar.xz
+
+# 先为主机编译 Qt5 工具 (qmake 等)
+RUN cd /opt/qt5-src && \
+    ./configure -prefix /opt/qt5-host \
+        -opensource -confirm-license \
+        -nomake tests -nomake examples \
+        -skip qtwebengine -skip qt3d -skip qtquick3d \
+        -skip qtdatavis3d -skip qtlottie -skip qtscxml \
+        -skip qtspeech -skip qtgamepad -skip qtpurchasing \
+        -skip qtremoteobjects -skip qtsensors -skip qtserialbus \
+        -skip qtserialport -skip qtlocation -skip qtmultimedia \
+        -skip qtwebview -skip qtwebsockets -skip qtwebchannel \
+        -skip qtconnectivity -skip qtgraphicaleffects \
+        -skip qtquickcontrols -skip qtquickcontrols2 \
+        -skip qtdeclarative -skip qtxmlpatterns \
+        -skip qtcanvas3d -skip qtdoc -skip qttranslations \
+        -skip qtactiveqt -skip qtx11extras && \
+    make -j$(nproc) && make install
+
+# 使用 NDK 交叉编译 Qt5 for Android ARM64
+RUN cd /opt/qt5-src && \
+    export ANDROID_SDK_ROOT=${ANDROID_HOME} && \
+    export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
+    export PATH=/opt/qt5-host/bin:${TOOLCHAIN}/bin:${PATH} && \
+    export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 && \
+    ./configure -prefix /opt/qt5-android \
+        -opensource -confirm-license \
+        -xplatform android-clang \
+        -android-ndk ${ANDROID_NDK} \
+        -android-sdk ${ANDROID_HOME} \
+        -android-abis arm64-v8a \
+        -android-api-level 24 \
+        -nomake tests -nomake examples \
+        -skip qtwebengine -skip qt3d -skip qtquick3d \
+        -skip qtdatavis3d -skip qtlottie -skip qtscxml \
+        -skip qtspeech -skip qtgamepad -skip qtpurchasing \
+        -skip qtremoteobjects -skip qtsensors -skip qtserialbus \
+        -skip qtserialport -skip qtlocation -skip qtmultimedia \
+        -skip qtwebview -skip qtwebsockets -skip qtwebchannel \
+        -skip qtconnectivity -skip qtgraphicaleffects \
+        -skip qtquickcontrols -skip qtquickcontrols2 \
+        -skip qtdeclarative -skip qtxmlpatterns \
+        -skip qtcanvas3d -skip qtdoc -skip qttranslations \
+        -skip qtactiveqt -skip qtx11extras \
+        -no-compile-examples && \
+    make -j$(nproc) && make install
 
 # ===== 编译 qBittorrent =====
 RUN git clone --depth 1 --branch release-4.6.7 \
