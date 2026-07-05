@@ -55,7 +55,7 @@ jobs:
             echo "Downloading Qt5..."
             wget -q "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz" -O qt5.tar.xz
             xz -d qt5.tar.xz
-            mv qt5.tar.xz qt-everywhere-src-5.15.2.tar.gz 2>/dev/null || true
+            mv qt5.tar qt-everywhere-src-5.15.2.tar.gz
           fi
 
           # Download libtorrent if not exists
@@ -118,7 +118,7 @@ jobs:
           echo "=== Step 2: Build Qt5 from source ==="
           cd /build
           if [ ! -f /opt/qt5-custom/lib/libQt5Core_arm64-v8a.so ]; then
-            tar xzf /tmp/qt-everywhere-src-5.15.2.tar.gz
+            tar xf /tmp/qt-everywhere-src-5.15.2.tar.gz
             cd qt-everywhere-src-5.15.2
 
             # Patch: disable JNI_OnLoad in androidjnimain.cpp
@@ -144,6 +144,7 @@ jobs:
             cd /build/qt5-build
 
             export OPENSSL_LIBS="-L/opt/openssl-arm64/lib -lssl -lcrypto"
+            export OPENSSL_LIBS="-lssl -lcrypto"
             export PATH=${TOOLCHAIN}/bin:$PATH
 
             ../qt-everywhere-src-5.15.2/configure \
@@ -157,7 +158,7 @@ jobs:
               -android-abis arm64-v8a \
               -no-gui -no-widgets \
               -no-opengl -no-vulkan \
-              -openssl-runtime -I/opt/openssl-arm64/include \
+              -openssl-linked -I/opt/openssl-arm64/include -L/opt/openssl-arm64/lib \
               -skip qtx11extras -skip qtmacextras -skip qtwinextras \
               -skip qtdeclarative -skip qtquickcontrols -skip qtquickcontrols2 \
               -skip qtmultimedia -skip qtwebengine -skip qtwebview \
@@ -304,6 +305,7 @@ jobs:
           docker build -t qbt-builder -f Dockerfile .
 
           # 运行构建
+          mkdir -p output
           docker run --rm \
             -v $(pwd)/build_all_in_docker.sh:/build/build_all_in_docker.sh \
             -v $(pwd)/docker-sources/qbittorrent:/build/qbittorrent-src \
