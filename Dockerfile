@@ -12,10 +12,11 @@ ENV AR=${TOOLCHAIN}/bin/llvm-ar
 ENV RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
 ENV STRIP=${TOOLCHAIN}/bin/llvm-strip
 
+# ===== 配置 apt 国内镜像源 =====
+RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
+    sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
+
 # ===== 安装基础工具 =====
-# GitHub Actions 环境使用标准源，本地 Docker 可取消注释镜像源加速
-# RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
-#     sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl wget unzip tar p7zip python3 python3-pip \
     build-essential cmake ninja-build pkg-config \
@@ -23,11 +24,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 
+# ===== 复制本地源码包 =====
+COPY docker-sources/openssl-3.3.2.tar.gz /tmp/
+COPY docker-sources/boost_1_86_0.tar.gz /tmp/
+COPY docker-sources/qt-everywhere-src-5.15.2.tar.xz /tmp/
+COPY docker-sources/libtorrent /build/libtorrent-src
+COPY docker-sources/qbittorrent /build/qbittorrent-src
+
 # 安装 Android SDK + NDK
 RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
     cd /tmp && \
     curl -fsSL -o cmdtools.zip \
-      "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" && \
+      "https://mirrors.cloud.tencent.com/AndroidSDK/commandlinetools-linux-11076708_latest.zip" && \
     python3 -c "import zipfile; zipfile.ZipFile('cmdtools.zip').extractall('${ANDROID_HOME}/cmdline-tools/')" && \
     mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest && \
     rm cmdtools.zip
@@ -42,8 +50,7 @@ RUN chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager && \
 
 # ===== 编译 OpenSSL =====
 WORKDIR /build
-RUN curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" -o openssl.tar.gz && \
-    tar xzf openssl.tar.gz && rm openssl.tar.gz && \
+RUN tar xzf /tmp/openssl-3.3.2.tar.gz && \
     cd openssl-3.3.2 && \
     export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
     export PATH=${TOOLCHAIN}/bin:${PATH} && \
@@ -53,8 +60,7 @@ RUN curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" -o openssl.
     make -j$(nproc) build_libs && make install_sw
 
 # ===== 编译 Boost =====
-RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz" -o boost.tar.gz && \
-    tar xzf boost.tar.gz && rm boost.tar.gz && \
+RUN tar xzf /tmp/boost_1_86_0.tar.gz && \
     cd boost_1_86_0 && \
     ./bootstrap.sh --with-toolset=clang && \
     echo "using clang : android : ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ : <archiver>${TOOLCHAIN}/bin/llvm-ar <ranlib>${TOOLCHAIN}/bin/llvm-ranlib <linkflags>-llog <compileflags>--target=aarch64-linux-android24 <compileflags>-fPIC ;" > user-config.jam && \
@@ -75,9 +81,7 @@ RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar
         -j$(nproc) --abbreviate-paths -d1
 
 # ===== 编译 libtorrent =====
-RUN git clone --depth 1 --recursive --branch v2.0.10 \
-      https://gitclone.com/github.com/arvidn/libtorrent.git /build/libtorrent && \
-    cd /build/libtorrent && mkdir build && cd build && \
+RUN cd /build/libtorrent-src && mkdir build && cd build && \
     cmake .. \
         -G Ninja \
         -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
@@ -104,7 +108,6 @@ RUN git clone --depth 1 --recursive --branch v2.0.10 \
     cmake --build . -j$(nproc) && cmake --install .
 
 # ===== 编译 Qt5 for Android (qBittorrent 4.6.7 需要) =====
-# Qt5 Android 预编译包已下架，需要从源码编译
 # 下载 NDK r21e (Qt5.15.2 支持的版本)
 RUN cd /tmp && \
     curl -fsSL -o ndk-r21e.zip "https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip" && \
@@ -112,11 +115,9 @@ RUN cd /tmp && \
     mv /opt/android-ndk-r21e /opt/ndk-r21 && \
     rm ndk-r21e.zip
 
-RUN cd /tmp && \
-    curl -fsSL -o qt5-src.tar.xz "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz" && \
-    tar xf qt5-src.tar.xz && \
-    mv qt-everywhere-src-5.15.2 /opt/qt5-src && \
-    rm qt5-src.tar.xz
+RUN tar xf /tmp/qt-everywhere-src-5.15.2.tar.xz -C /opt && \
+    mv /opt/qt-everywhere-src-5.15.2 /opt/qt5-src && \
+    rm /tmp/qt-everywhere-src-5.15.2.tar.xz
 
 # 使用 NDK r21 交叉编译 Qt5 for Android ARM64
 RUN cd /opt/qt5-src && \
@@ -141,9 +142,7 @@ RUN cd /opt/qt5-src && \
     make -j$(nproc) && make install
 
 # ===== 编译 qBittorrent =====
-RUN git clone --depth 1 --branch release-4.6.7 \
-      https://gitclone.com/github.com/qbittorrent/qBittorrent.git /build/qbittorrent && \
-    cd /build/qbittorrent && mkdir build && cd build && \
+RUN cd /build/qbittorrent-src && mkdir build && cd build && \
     QT5_DIR=$(find /opt/qt5 -name "Qt5Config.cmake" -exec dirname {} \; | head -1) && \
     echo "Qt5 found at: $QT5_DIR" && \
     cmake .. \
