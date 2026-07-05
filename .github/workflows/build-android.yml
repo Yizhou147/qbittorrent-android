@@ -56,41 +56,43 @@ jobs:
           mkdir -p ci-sources
 
           # Download OpenSSL
-          if [ ! -f ci-sources/openssl-3.3.2.tar.gz ]; then
-            echo "Downloading OpenSSL..."
-            curl -fsSL -o ci-sources/openssl-3.3.2.tar.gz \
-              "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz"
-          fi
+          echo "Downloading OpenSSL..."
+          curl -L --retry 3 -o ci-sources/openssl-3.3.2.tar.gz \
+            "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz" || \
+          curl -L --retry 3 -o ci-sources/openssl-3.3.2.tar.gz \
+            "https://www.openssl.org/source/openssl-3.3.2.tar.gz"
 
           # Download Qt5
-          if [ ! -f ci-sources/qt-everywhere-src-5.15.2.tar.xz ]; then
-            echo "Downloading Qt5..."
-            curl -fsSL -o ci-sources/qt-everywhere-src-5.15.2.tar.xz \
-              "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz"
-          fi
+          echo "Downloading Qt5..."
+          curl -L --retry 3 -o ci-sources/qt-everywhere-src-5.15.2.tar.xz \
+            "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz"
 
           # Download Boost
-          if [ ! -f ci-sources/boost_1_86_0.tar.gz ]; then
-            echo "Downloading Boost..."
-            curl -fsSL -o ci-sources/boost_1_86_0.tar.gz \
-              "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz"
-          fi
+          echo "Downloading Boost..."
+          curl -L --retry 3 -o ci-sources/boost_1_86_0.tar.gz \
+            "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz"
 
           # Download libtorrent
-          if [ ! -f ci-sources/libtorrent-2.0.11.tar.gz ]; then
-            echo "Downloading libtorrent..."
-            curl -fsSL -o ci-sources/libtorrent-2.0.11.tar.gz \
-              "https://github.com/arvidn/libtorrent/releases/download/v2.0.11/libtorrent-rasterbar-2.0.11.tar.gz"
-          fi
+          echo "Downloading libtorrent..."
+          curl -L --retry 3 -o ci-sources/libtorrent-2.0.11.tar.gz \
+            "https://github.com/arvidn/libtorrent/releases/download/v2.0.11/libtorrent-rasterbar-2.0.11.tar.gz"
 
           # Download qBittorrent
-          if [ ! -f ci-sources/qbittorrent-4.6.7.tar.gz ]; then
-            echo "Downloading qBittorrent..."
-            curl -fsSL -o ci-sources/qbittorrent-4.6.7.tar.gz \
-              "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-4.6.7.tar.gz"
-          fi
+          echo "Downloading qBittorrent..."
+          curl -L --retry 3 -o ci-sources/qbittorrent-4.6.7.tar.gz \
+            "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-4.6.7.tar.gz"
 
-          echo "Source packages ready"
+          # Verify all files exist and have reasonable size
+          echo "=== Verifying downloads ==="
+          ls -lh ci-sources/
+          for f in ci-sources/*.tar.*; do
+            size=$(stat -c%s "$f")
+            if [ "$size" -lt 100000 ]; then
+              echo "ERROR: $f is too small ($size bytes), download likely failed"
+              exit 1
+            fi
+          done
+          echo "All source packages verified"
 
       - name: Create build script
         run: |
