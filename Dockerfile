@@ -12,6 +12,10 @@ ENV AR=${TOOLCHAIN}/bin/llvm-ar
 ENV RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
 ENV STRIP=${TOOLCHAIN}/bin/llvm-strip
 
+# ===== 配置 apt 国内镜像源 =====
+RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
+    sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
+
 # ===== 安装基础工具 =====
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl wget unzip tar p7zip python3 python3-pip \
@@ -24,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
     cd /tmp && \
     curl -fsSL -o cmdtools.zip \
-      "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" && \
+      "https://mirrors.cloud.tencent.com/AndroidSDK/commandlinetools-linux-11076708_latest.zip" && \
     python3 -c "import zipfile; zipfile.ZipFile('cmdtools.zip').extractall('${ANDROID_HOME}/cmdline-tools/')" && \
     mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest && \
     rm cmdtools.zip
@@ -39,7 +43,8 @@ RUN chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager && \
 
 # ===== 编译 OpenSSL =====
 WORKDIR /build
-RUN curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" | tar xz && \
+RUN curl -fsSL "https://mirrors.tuna.tsinghua.edu.cn/openssl/source/openssl-3.3.2.tar.gz" -o openssl.tar.gz && \
+    tar xzf openssl.tar.gz && rm openssl.tar.gz && \
     cd openssl-3.3.2 && \
     export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
     export PATH=${TOOLCHAIN}/bin:${PATH} && \
@@ -49,7 +54,8 @@ RUN curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" | tar xz &&
     make -j$(nproc) build_libs && make install_sw
 
 # ===== 编译 Boost =====
-RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz" | tar xz && \
+RUN curl -fsSL "https://mirrors.tuna.tsinghua.edu.cn/boost/source/1.86.0/boost_1_86_0.tar.gz" -o boost.tar.gz && \
+    tar xzf boost.tar.gz && rm boost.tar.gz && \
     cd boost_1_86_0 && \
     ./bootstrap.sh --with-toolset=clang && \
     echo "using clang : android : ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ : <archiver>${TOOLCHAIN}/bin/llvm-ar <ranlib>${TOOLCHAIN}/bin/llvm-ranlib <linkflags>-llog <compileflags>--target=aarch64-linux-android24 <compileflags>-fPIC ;" > user-config.jam && \
@@ -71,7 +77,7 @@ RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar
 
 # ===== 编译 libtorrent =====
 RUN git clone --depth 1 --recursive --branch v2.0.10 \
-      https://github.com/arvidn/libtorrent.git /build/libtorrent && \
+      https://gitclone.com/github.com/arvidn/libtorrent.git /build/libtorrent && \
     cd /build/libtorrent && mkdir build && cd build && \
     cmake .. \
         -G Ninja \
@@ -100,54 +106,44 @@ RUN git clone --depth 1 --recursive --branch v2.0.10 \
 
 # ===== 编译 Qt5 for Android (qBittorrent 4.6.7 需要) =====
 # Qt5 Android 预编译包已下架，需要从源码编译
+# 下载 NDK r21e (Qt5.15.2 支持的版本)
 RUN cd /tmp && \
-    curl -fsSL -o qt5-src.tar.xz "https://download.qt.io/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz" && \
+    curl -fsSL -o ndk-r21e.zip "https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip" && \
+    unzip -q ndk-r21e.zip -d /opt && \
+    mv /opt/android-ndk-r21e /opt/ndk-r21 && \
+    rm ndk-r21e.zip
+
+RUN cd /tmp && \
+    curl -fsSL -o qt5-src.tar.xz "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz" && \
     tar xf qt5-src.tar.xz && \
     mv qt-everywhere-src-5.15.2 /opt/qt5-src && \
     rm qt5-src.tar.xz
 
-# 先为主机编译 Qt5 工具 (qmake 等)
+# 使用 NDK r21 交叉编译 Qt5 for Android ARM64
 RUN cd /opt/qt5-src && \
-    ./configure -prefix /opt/qt5-host \
-        -opensource -confirm-license \
-        -nomake tests -nomake examples \
-        -skip qtwebengine -skip qt3d -skip qtquick3d \
-        -skip qtdatavis3d -skip qtlottie -skip qtscxml \
-        -skip qtspeech -skip qtgamepad -skip qtpurchasing \
-        -skip qtremoteobjects -skip qtsensors -skip qtserialbus \
-        -skip qtserialport -skip qtlocation -skip qtmultimedia \
-        -skip qtwebview -skip qtwebsockets -skip qtwebchannel \
-        -skip qtconnectivity -skip qtgraphicaleffects \
-        -skip qtquickcontrols -skip qtquickcontrols2 \
-        -skip qtdeclarative -skip qtxmlpatterns \
-        -skip qtcanvas3d -skip qtdoc -skip qttranslations \
-        -skip qtactiveqt -skip qtx11extras && \
-    make -j$(nproc) && make install
-
-# 使用 NDK 交叉编译 Qt5 for Android ARM64 (只编译 qtbase)
-RUN cd /opt/qt5-src/qtbase && \
     export ANDROID_SDK_ROOT=${ANDROID_HOME} && \
-    export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
-    export PATH=/opt/qt5-host/bin:${TOOLCHAIN}/bin:${PATH} && \
+    export ANDROID_NDK_ROOT=/opt/ndk-r21 && \
+    export PATH=/opt/ndk-r21/toolchains/llvm/prebuilt/linux-x86_64/bin:${PATH} && \
     export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 && \
-    # 使用 mkspecs 目录中的 android-clang 配置
     ./configure \
         -prefix /opt/qt5-android \
         -opensource -confirm-license \
         -platform linux-g++ \
         -xplatform android-clang \
-        -android-ndk ${ANDROID_NDK} \
+        -android-ndk /opt/ndk-r21 \
         -android-sdk ${ANDROID_HOME} \
         -android-abis arm64-v8a \
         -android-api-level 24 \
         -nomake tests -nomake examples \
         -no-gui \
+        -no-openssl \
+        -no-dbus \
         -no-compile-examples && \
     make -j$(nproc) && make install
 
 # ===== 编译 qBittorrent =====
 RUN git clone --depth 1 --branch release-4.6.7 \
-      https://github.com/qbittorrent/qBittorrent.git /build/qbittorrent && \
+      https://gitclone.com/github.com/qbittorrent/qBittorrent.git /build/qbittorrent && \
     cd /build/qbittorrent && mkdir build && cd build && \
     QT5_DIR=$(find /opt/qt5 -name "Qt5Config.cmake" -exec dirname {} \; | head -1) && \
     echo "Qt5 found at: $QT5_DIR" && \
