@@ -14,7 +14,7 @@ ENV STRIP=${TOOLCHAIN}/bin/llvm-strip
 
 # 安装基础工具
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl wget unzip tar python3 python3-pip \
+    git curl wget unzip tar p7zip python3 python3-pip \
     build-essential cmake ninja-build pkg-config \
     clang \
     openjdk-17-jdk-headless \
@@ -99,15 +99,21 @@ RUN git clone --depth 1 --recursive --branch v2.0.10 \
     cmake --build . -j$(nproc) && cmake --install .
 
 # ===== 安装 Qt5 for Android (qBittorrent 4.6.7 需要) =====
-# Qt 5.15.2 Android 使用 Multi 架构包，不指定架构
-RUN pip3 install aqtinstall && \
-    aqt install-qt linux android 5.15.2 --outputdir /opt/qt5 && \
-    ls -la /opt/qt5/5.15.2/android/
+# aqtinstall 无法解析 Multi 架构格式，直接从 Qt 存档下载 qtbase
+RUN cd /tmp && \
+    curl -fsSL -o qtbase.7z "https://download.qt.io/online/qtsdkrepository/linux_x64/android/qt5_5152/qt.qt5.5152.android/qtbase-Linux-RHEL_7_6-Clang-Qt-Qt-Qt_ANY-Multi.7z" && \
+    mkdir -p /opt/qt5 && cd /opt/qt5 && \
+    7z x /tmp/qtbase.7z -o/opt/qt5 -y && \
+    rm /tmp/qtbase.7z && \
+    ls -la /opt/qt5/ && \
+    find /opt/qt5 -name "Qt5Config.cmake" -o -name "libQt5Core.so" | head -5
 
 # ===== 编译 qBittorrent =====
 RUN git clone --depth 1 --branch release-4.6.7 \
       https://github.com/qbittorrent/qBittorrent.git /build/qbittorrent && \
     cd /build/qbittorrent && mkdir build && cd build && \
+    QT5_DIR=$(find /opt/qt5 -name "Qt5Config.cmake" -exec dirname {} \; | head -1) && \
+    echo "Qt5 found at: $QT5_DIR" && \
     cmake .. \
         -G Ninja \
         -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
@@ -116,9 +122,9 @@ RUN git clone --depth 1 --branch release-4.6.7 \
         -DCMAKE_INSTALL_PREFIX=${PREFIX} \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_STANDARD=17 \
-        -DCMAKE_FIND_ROOT_PATH="${PREFIX};/opt/qt5/5.15.2/android" \
+        -DCMAKE_FIND_ROOT_PATH="${PREFIX};/opt/qt5" \
         -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
-        -DQt5_DIR=/opt/qt5/5.15.2/android/lib/cmake/Qt5 \
+        -DQt5_DIR=$QT5_DIR \
         -DGUI=OFF \
         -DWEBUI=ON \
         -DTESTING=OFF \
