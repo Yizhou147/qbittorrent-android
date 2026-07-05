@@ -130,6 +130,56 @@ public class QBittorrentService extends Service {
     // JNI: call qBittorrent main() in-process (needed for Qt5 JNI initialization)
     private native int nativeMain(String[] args);
 
+    /** 复制系统 CA 证书到 app 的 cacerts 目录（供 OpenSSL 使用） */
+    private void copyCACerts(File profileDir) {
+        File cacertsDir = new File(profileDir, "cacerts");
+        File caBundle = new File(profileDir, "ca-certificates.crt");
+        if (caBundle.exists() && caBundle.length() > 1000) {
+            return;
+        }
+        cacertsDir.mkdirs();
+        File systemCacerts = new File("/system/etc/security/cacerts");
+        if (!systemCacerts.exists() || systemCacerts.list() == null) {
+            broadcastLog("WARN", "系统 CA 证书目录不存在");
+            return;
+        }
+        String[] certs = systemCacerts.list();
+        int count = 0;
+        try {
+            java.io.FileOutputStream bundleOut = new java.io.FileOutputStream(caBundle);
+            for (String cert : certs) {
+                try {
+                    File src = new File(systemCacerts, cert);
+                    File dst = new File(cacertsDir, cert);
+                    if (!dst.exists()) {
+                        java.io.FileInputStream fis = new java.io.FileInputStream(src);
+                        java.io.FileOutputStream fos = new java.io.FileOutputStream(dst);
+                        byte[] buf = new byte[4096];
+                        int len;
+                        while ((len = fis.read(buf)) > 0) {
+                            fos.write(buf, 0, len);
+                        }
+                        fis.close();
+                        fos.close();
+                    }
+                    java.io.FileInputStream fis2 = new java.io.FileInputStream(src);
+                    byte[] buf2 = new byte[4096];
+                    int len2;
+                    while ((len2 = fis2.read(buf2)) > 0) {
+                        bundleOut.write(buf2, 0, len2);
+                    }
+                    bundleOut.write('\n');
+                    fis2.close();
+                    count++;
+                } catch (Exception ignored) {}
+            }
+            bundleOut.close();
+        } catch (Exception e) {
+            broadcastLog("WARN", "CA 证书复制失败: " + e.getMessage());
+        }
+        broadcastLog("INFO", "已复制 " + count + " 个 CA 证书");
+    }
+
     /** 写入默认配置（首次启动），已存在则跳过 */
     private boolean writeDefaultConfig(File profileDir) {
         File cfgDir = new File(profileDir, "qBittorrent/config");
@@ -138,7 +188,8 @@ public class QBittorrentService extends Service {
         if (cfgFile.exists()) return false; // 已有配置
         String cfg = "[BitTorrent]\n" +
                 "Session\\Port=59342\n" +
-                "Session\\QueueingSystemEnabled=false\n\n" +
+                "Session\\QueueingSystemEnabled=false\n" +
+                "Session\\ValidateHTTPSTrackerCertificate=false\n\n" +
                 "[Meta]\n" +
                 "MigrationVersion=6\n\n" +
                 "[Preferences]\n" +
@@ -233,6 +284,9 @@ public class QBittorrentService extends Service {
             if (firstRun) {
                 broadcastLog("INFO", "首次启动，已写入默认配置（中文界面）");
             }
+
+            // 复制系统 CA 证书到 app 目录（OpenSSL 需要）
+            copyCACerts(configDir);
 
             broadcastLog("INFO", "配置目录: " + configDir.getAbsolutePath());
             broadcastLog("INFO", "下载目录: " + downloadsDir.getAbsolutePath());
