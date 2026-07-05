@@ -28,6 +28,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY docker-sources/openssl-3.3.2.tar.gz /tmp/
 COPY docker-sources/boost_1_86_0.tar.gz /tmp/
 COPY docker-sources/android-ndk-r27b-linux.zip /tmp/
+COPY docker-sources/qt-everywhere-src-5.15.2.tar.gz /tmp/
+COPY docker-sources/libtorrent-2.0.11.tar.gz /tmp/
+COPY docker-sources/qbittorrent-4.6.7.tar.gz /tmp/
 COPY docker-sources/libtorrent /build/libtorrent-src
 COPY docker-sources/qbittorrent /build/qbittorrent-src
 
