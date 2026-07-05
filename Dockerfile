@@ -23,22 +23,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Android SDK + NDK
-RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
+# 安装 Android SDK + NDK (手动下载，不使用 sdkmanager)
+RUN mkdir -p ${ANDROID_HOME}/platforms ${ANDROID_HOME}/build-tools && \
     cd /tmp && \
-    curl -fsSL -o cmdtools.zip \
-      "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" && \
-    python3 -c "import zipfile; zipfile.ZipFile('cmdtools.zip').extractall('${ANDROID_HOME}/cmdline-tools/')" && \
-    mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest && \
-    rm cmdtools.zip
-
-RUN chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager && \
-    chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/avdmanager && \
-    export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 && \
-    export PATH="${JAVA_HOME}/bin:${PATH}" && \
-    java -version && \
-    yes | sdkmanager --licenses > /dev/null 2>&1 || true && \
-    sdkmanager "platform-tools" "platforms;android-34" "ndk;27.0.12077973" "build-tools;34.0.0"
+    curl -fsSL -o platform-34.zip "https://dl.google.com/android/repository/platform-34-ext7_r02.zip" && \
+    unzip -q platform-34.zip -d ${ANDROID_HOME}/platforms/ && \
+    mv ${ANDROID_HOME}/platforms/android-14 ${ANDROID_HOME}/platforms/android-34 && \
+    rm platform-34.zip && \
+    curl -fsSL -o build-tools.zip "https://dl.google.com/android/repository/build-tools_r34-linux.zip" && \
+    mkdir -p /tmp/bt-extract && \
+    unzip -q build-tools.zip -d /tmp/bt-extract && \
+    mv /tmp/bt-extract/android-14 ${ANDROID_HOME}/build-tools/34.0.0 && \
+    rm -rf build-tools.zip /tmp/bt-extract && \
+    curl -fsSL -o ndk.zip "https://dl.google.com/android/repository/android-ndk-r27b-linux.zip" && \
+    unzip -q ndk.zip -d /tmp/ndk-extract && \
+    mv /tmp/ndk-extract/android-ndk-r27b ${ANDROID_HOME}/ndk/27.0.12077973 && \
+    rm -rf ndk.zip /tmp/ndk-extract
 
 ENV PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 
