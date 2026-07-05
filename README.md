@@ -4,7 +4,8 @@
 
 <h1 align="center">qBittorrent for Android</h1>
 
-<p align="center">真正的安卓 qBittorrent 客户端！</p>
+<p align="center" style="font-size: 26px; font-weight: bold;">真正的安卓 qBittorrent 客户端！</p>
+
 
 <p align="center">
   <img src="screenshot.jpg" width="100%" alt="qBittorrent Android Screenshot">
