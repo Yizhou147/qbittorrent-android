@@ -31,22 +31,21 @@ jobs:
 
       - name: Create Dockerfile for CI build
         run: |
-          cat > Dockerfile.ci << 'EOF'
+          cat > Dockerfile.ci <<'EOF'
           FROM ubuntu:22.04
-
           ENV DEBIAN_FRONTEND=noninteractive
-
           RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
               sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
               apt-get update && apt-get install -y --no-install-recommends \
               build-essential cmake ninja-build pkg-config clang perl \
               curl wget unzip tar xz-utils python3 \
-              openjdk-17-jdk-headless ca-certificates \
-              && rm -rf /var/lib/apt/lists/*
-
+              openjdk-17-jdk-headless ca-certificates && \
+              rm -rf /var/lib/apt/lists/*
           RUN mkdir -p /build /src /output
           WORKDIR /build
           EOF
+          # Remove leading spaces from Dockerfile
+          sed -i 's/^          //' Dockerfile.ci
 
       - name: Build Docker base image
         run: |
@@ -95,7 +94,7 @@ jobs:
 
       - name: Create build script
         run: |
-          cat > build.sh << 'BUILDSCRIPT'
+          cat > build.sh <<'BUILDSCRIPT'
           #!/bin/bash
           set -ex
 
@@ -276,6 +275,8 @@ jobs:
           ls -lh /output/libqbt.so
           BUILDSCRIPT
 
+          # Remove leading spaces from build script
+          sed -i 's/^          //' build.sh
           chmod +x build.sh
 
       - name: Build native libraries in Docker
