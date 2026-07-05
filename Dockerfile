@@ -98,10 +98,10 @@ RUN git clone --depth 1 --recursive --branch v2.0.10 \
         -Dencryption=ON && \
     cmake --build . -j$(nproc) && cmake --install .
 
-# ===== 安装 Qt5 (qBittorrent 4.6.7 需要) =====
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    qtbase5-dev qttools5-dev qttools5-dev-tools libqt5sql5-sqlite \
-    && rm -rf /var/lib/apt/lists/*
+# ===== 安装 Qt5 for Android (qBittorrent 4.6.7 需要) =====
+RUN pip3 install aqtinstall && \
+    aqt install-qt linux android 5.15.2 android_arm64_v8a --outputdir /opt/qt5 && \
+    ls -la /opt/qt5/5.15.2/android_arm64_v8a/
 
 # ===== 编译 qBittorrent =====
 RUN git clone --depth 1 --branch release-4.6.7 \
@@ -115,9 +115,9 @@ RUN git clone --depth 1 --branch release-4.6.7 \
         -DCMAKE_INSTALL_PREFIX=${PREFIX} \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_STANDARD=17 \
-        -DCMAKE_FIND_ROOT_PATH="${PREFIX};/usr" \
+        -DCMAKE_FIND_ROOT_PATH="${PREFIX};/opt/qt5/5.15.2/android_arm64_v8a" \
         -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
-        -DQt5_DIR=/usr/lib/x86_64-linux-gnu/cmake/Qt5 \
+        -DQt5_DIR=/opt/qt5/5.15.2/android_arm64_v8a/lib/cmake/Qt5 \
         -DGUI=OFF \
         -DWEBUI=ON \
         -DTESTING=OFF \
