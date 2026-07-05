@@ -12,11 +12,10 @@ ENV AR=${TOOLCHAIN}/bin/llvm-ar
 ENV RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
 ENV STRIP=${TOOLCHAIN}/bin/llvm-strip
 
-# ===== 配置 apt 国内镜像源 =====
-RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
-
 # ===== 安装基础工具 =====
+# GitHub Actions 环境使用标准源，本地 Docker 可取消注释镜像源加速
+# RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
+#     sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl wget unzip tar p7zip python3 python3-pip \
     build-essential cmake ninja-build pkg-config \
