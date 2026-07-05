@@ -43,7 +43,7 @@ RUN chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager && \
 
 # ===== 编译 OpenSSL =====
 WORKDIR /build
-RUN curl -fsSL "https://mirrors.tuna.tsinghua.edu.cn/openssl/source/openssl-3.3.2.tar.gz" -o openssl.tar.gz && \
+RUN curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" -o openssl.tar.gz && \
     tar xzf openssl.tar.gz && rm openssl.tar.gz && \
     cd openssl-3.3.2 && \
     export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
