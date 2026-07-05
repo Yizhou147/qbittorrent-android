@@ -78,7 +78,7 @@ jobs:
 
           docker run --rm \
             -v ${{ github.workspace }}/ci-sources:/src:ro \
-            -v ${{ github.workspace }}/ci-patches:/src/qbittorrent-patch:ro \
+            -v ${{ github.workspace }}/ci-patches:/patches:ro \
             -v ${{ github.workspace }}/output:/output \
             qbt-builder \
             bash -c '
@@ -221,14 +221,14 @@ jobs:
             cd qbittorrent-4.6.7
 
             # Copy patched JNI bridge
-            if [ -f /src/qbittorrent-patch/android_jni_bridge.cpp ]; then
-              cp /src/qbittorrent-patch/android_jni_bridge.cpp src/app/
+            if [ -f /patches/android_jni_bridge.cpp ]; then
+              cp /patches/android_jni_bridge.cpp src/app/
             fi
-            if [ -f /src/qbittorrent-patch/CMakeLists.txt ]; then
-              cp /src/qbittorrent-patch/CMakeLists.txt src/app/
+            if [ -f /patches/CMakeLists.txt ]; then
+              cp /patches/CMakeLists.txt src/app/
             fi
-            if [ -f /src/qbittorrent-patch/CheckPackages.cmake ]; then
-              cp /src/qbittorrent-patch/CheckPackages.cmake cmake/Modules/
+            if [ -f /patches/CheckPackages.cmake ]; then
+              cp /patches/CheckPackages.cmake cmake/Modules/
             fi
 
             mkdir build && cd build
