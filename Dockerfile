@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
     cd /tmp && \
     curl -fsSL -o cmdtools.zip \
-      "https://mirrors.cloud.tencent.com/AndroidSDK/commandlinetools-linux-11076708_latest.zip" && \
+      "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" && \
     python3 -c "import zipfile; zipfile.ZipFile('cmdtools.zip').extractall('${ANDROID_HOME}/cmdline-tools/')" && \
     mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest && \
     rm cmdtools.zip
