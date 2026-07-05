@@ -44,6 +44,7 @@ jobs:
               openjdk-17-jdk-headless ca-certificates \
               && rm -rf /var/lib/apt/lists/*
 
+          RUN mkdir -p /build /src /output
           WORKDIR /build
           EOF
 
