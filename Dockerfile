@@ -53,7 +53,7 @@ RUN curl -fsSL "https://www.openssl.org/source/openssl-3.3.2.tar.gz" -o openssl.
     make -j$(nproc) build_libs && make install_sw
 
 # ===== 编译 Boost =====
-RUN curl -fsSL "https://mirrors.tuna.tsinghua.edu.cn/boost/source/1.86.0/boost_1_86_0.tar.gz" -o boost.tar.gz && \
+RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz" -o boost.tar.gz && \
     tar xzf boost.tar.gz && rm boost.tar.gz && \
     cd boost_1_86_0 && \
     ./bootstrap.sh --with-toolset=clang && \
