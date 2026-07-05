@@ -101,7 +101,7 @@ RUN git clone --depth 1 --recursive --branch v2.0.10 \
 # ===== 安装 Qt5 for Android (qBittorrent 4.6.7 需要) =====
 # aqtinstall 无法解析 Multi 架构格式，直接从 Qt 存档下载 qtbase
 RUN cd /tmp && \
-    curl -fsSL -o qtbase.7z "https://download.qt.io/online/qtsdkrepository/linux_x64/android/qt5_5152/qt.qt5.5152.android/qtbase-Linux-RHEL_7_6-Clang-Qt-Qt-Qt_ANY-Multi.7z" && \
+    curl -fsSL -o qtbase.7z "https://download.qt.io/online/qtsdkrepository/linux_x64/android/qt5_5152/qt.qt5.5152.android/qtbase-Linux-RHEL_7_6-Clang-Android-Android_ANY-Multi.7z" && \
     mkdir -p /opt/qt5 && cd /opt/qt5 && \
     7z x /tmp/qtbase.7z -o/opt/qt5 -y && \
     rm /tmp/qtbase.7z && \
