@@ -2,39 +2,23 @@ name: Build qBittorrent Android APK
 
 on:
   workflow_dispatch:
-    inputs:
-      create_release:
-        description: 'Create GitHub Release'
-        required: false
-        default: 'false'
-        type: boolean
   push:
     tags:
       - 'v*'
 
 jobs:
   build-native:
-    name: Build Native Libraries (Qt5, libtorrent, qBittorrent)
+    name: Build Native Libraries
     runs-on: ubuntu-latest
     timeout-minutes: 360
-
-    outputs:
-      lib_version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-native-${{ hashFiles('Dockerfile') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-native-
+      - name: Install Docker
+        run: |
+          docker --version
 
       - name: Extract version
         id: version
@@ -45,88 +29,117 @@ jobs:
             echo "version=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
 
-      - name: Download missing source packages
+      - name: Create Dockerfile for CI build
         run: |
-          mkdir -p docker-sources
-          cd docker-sources
+          cat > Dockerfile.ci << 'EOF'
+          FROM ubuntu:22.04
 
-          # Download Qt5 if not exists
-          if [ ! -f qt-everywhere-src-5.15.2.tar.gz ]; then
+          ENV DEBIAN_FRONTEND=noninteractive
+
+          RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
+              sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
+              apt-get update && apt-get install -y --no-install-recommends \
+              build-essential cmake ninja-build pkg-config clang perl \
+              curl wget unzip tar xz-utils python3 \
+              openjdk-17-jdk-headless ca-certificates \
+              && rm -rf /var/lib/apt/lists/*
+
+          WORKDIR /build
+          EOF
+
+      - name: Build Docker base image
+        run: |
+          docker build -t qbt-builder -f Dockerfile.ci .
+
+      - name: Download source packages
+        run: |
+          mkdir -p ci-sources
+
+          # Download OpenSSL
+          if [ ! -f ci-sources/openssl-3.3.2.tar.gz ]; then
+            echo "Downloading OpenSSL..."
+            curl -fsSL -o ci-sources/openssl-3.3.2.tar.gz \
+              "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz"
+          fi
+
+          # Download Qt5
+          if [ ! -f ci-sources/qt-everywhere-src-5.15.2.tar.xz ]; then
             echo "Downloading Qt5..."
-            wget -q "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz" -O qt5.tar.xz
-            xz -d qt5.tar.xz
-            mv qt5.tar qt-everywhere-src-5.15.2.tar.gz
+            curl -fsSL -o ci-sources/qt-everywhere-src-5.15.2.tar.xz \
+              "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz"
           fi
 
-          # Download libtorrent if not exists
-          if [ ! -f libtorrent-2.0.11.tar.gz ]; then
+          # Download Boost
+          if [ ! -f ci-sources/boost_1_86_0.tar.gz ]; then
+            echo "Downloading Boost..."
+            curl -fsSL -o ci-sources/boost_1_86_0.tar.gz \
+              "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz"
+          fi
+
+          # Download libtorrent
+          if [ ! -f ci-sources/libtorrent-2.0.11.tar.gz ]; then
             echo "Downloading libtorrent..."
-            wget -q "https://github.com/arvidn/libtorrent/releases/download/v2.0.11/libtorrent-rasterbar-2.0.11.tar.gz" -O libtorrent-2.0.11.tar.gz
+            curl -fsSL -o ci-sources/libtorrent-2.0.11.tar.gz \
+              "https://github.com/arvidn/libtorrent/releases/download/v2.0.11/libtorrent-rasterbar-2.0.11.tar.gz"
           fi
 
-          # Download qBittorrent if not exists
-          if [ ! -f qbittorrent-4.6.7.tar.gz ]; then
+          # Download qBittorrent
+          if [ ! -f ci-sources/qbittorrent-4.6.7.tar.gz ]; then
             echo "Downloading qBittorrent..."
-            wget -q "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-4.6.7.tar.gz" -O qbittorrent-4.6.7.tar.gz
+            curl -fsSL -o ci-sources/qbittorrent-4.6.7.tar.gz \
+              "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-4.6.7.tar.gz"
           fi
 
-          # Download NDK if not exists
-          if [ ! -f android-ndk-r27b-linux.zip ]; then
-            echo "Downloading Android NDK..."
-            wget -q "https://dl.google.com/android/repository/android-ndk-r27b-linux.zip" -O android-ndk-r27b-linux.zip
-          fi
+          echo "Source packages ready"
 
-          echo "✅ Source packages ready"
-
-      - name: Build Docker image with all dependencies
+      - name: Create build script
         run: |
-          echo "=== Building Docker image with Qt5, OpenSSL, Boost, libtorrent ==="
-          echo "This will take 2-3 hours on first run..."
-
-          # 创建构建脚本
-          cat > build_all_in_docker.sh << 'SCRIPT'
+          cat > build.sh << 'BUILDSCRIPT'
           #!/bin/bash
-          set -e
+          set -ex
 
-          export ANDROID_NDK_HOME=/opt/android-sdk/ndk/27.0.12077973
+          # Install Android NDK
+          echo "=== Installing Android NDK ==="
+          curl -fsSL -o /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r27b-linux.zip
+          unzip -q /tmp/ndk.zip -d /opt/
+          mv /opt/android-ndk-r27b /opt/ndk
+          rm /tmp/ndk.zip
+
+          export ANDROID_NDK_HOME=/opt/ndk
           export TOOLCHAIN=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64
           export TARGET=aarch64-linux-android35
           export API=35
-          export PREFIX=/opt/qbt-output
+          export CC=${TOOLCHAIN}/bin/${TARGET}-clang
+          export CXX=${TOOLCHAIN}/bin/${TARGET}-clang++
+          export AR=${TOOLCHAIN}/bin/llvm-ar
+          export RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
+          export STRIP=${TOOLCHAIN}/bin/llvm-strip
 
+          # Step 1: Build OpenSSL
           echo "=== Step 1: Build OpenSSL ==="
           cd /build
-          if [ ! -f /opt/openssl-arm64/lib/libssl.so ]; then
-            tar xzf /tmp/openssl-3.3.2.tar.gz
-            cd openssl-3.3.2
-            export CC=${TOOLCHAIN}/bin/${TARGET}-clang
-            export CXX=${TOOLCHAIN}/bin/${TARGET}-clang++
-            export AR=${TOOLCHAIN}/bin/llvm-ar
-            export RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
+          tar xzf /src/openssl-3.3.2.tar.gz
+          cd openssl-3.3.2
+          ./Configure android-arm64 no-shared no-tests \
+            --prefix=/opt/openssl \
+            -D__ANDROID_API__=${API}
+          make -j$(nproc) build_libs
+          make install_dev
+          cd /build && rm -rf openssl-3.3.2
+          echo "Done: OpenSSL"
 
-            ./Configure android-arm64 no-shared no-tests \
-              --prefix=/opt/openssl-arm64 \
-              -D__ANDROID_API__=${API}
-
-            make -j$(nproc) build_libs
-            make install_dev
-            cd /build
-            rm -rf openssl-3.3.2
-          fi
-          echo "✅ OpenSSL built"
-
-          echo "=== Step 2: Build Qt5 from source ==="
+          # Step 2: Build Qt5
+          echo "=== Step 2: Build Qt5 ==="
           cd /build
-          if [ ! -f /opt/qt5-custom/lib/libQt5Core_arm64-v8a.so ]; then
-            tar xf /tmp/qt-everywhere-src-5.15.2.tar.gz
-            cd qt-everywhere-src-5.15.2
+          tar xf /src/qt-everywhere-src-5.15.2.tar.xz
+          cd qt-everywhere-src-5.15.2
 
-            # Patch: disable JNI_OnLoad in androidjnimain.cpp
-            sed -i 's/JNI_OnLoad/JNI_OnLoad_Disabled_Disabled_Disabled_Disabled_Disabled/g' \
-              qtbase/src/android/jar/src/org/qtproject/qt5/android/bindings/qt/src/androidjnimain.cpp
+          # Patch: disable JNI_OnLoad in androidjnimain.cpp
+          sed -i 's/JNI_OnLoad/JNI_OnLoad_Disabled/g' \
+            qtbase/src/android/jar/src/org/qtproject/qt5/android/bindings/qt/src/androidjnimain.cpp
 
-            # Patch: add JNI_OnLoad to qjnihelpers.cpp
-            cat >> qtbase/src/corelib/kernel/qjnihelpers.cpp << 'PATCH'
+          # Patch: add JNI_OnLoad to qjnihelpers.cpp
+          cat >> qtbase/src/corelib/kernel/qjnihelpers.cpp << 'PATCH'
 
           extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
           {
@@ -136,184 +149,154 @@ jobs:
           }
           PATCH
 
-            # Patch: NULL check in qjni.cpp
-            sed -i 's/vm->GetEnv(&env, JNI_VERSION_1_6)/vm ? vm->GetEnv(\&env, JNI_VERSION_1_6) : -1/g' \
-              qtbase/src/corelib/kernel/qjni.cpp
+          # Patch: NULL check in qjni.cpp
+          sed -i 's/vm->GetEnv(\&env, JNI_VERSION_1_6)/vm ? vm->GetEnv(\&env, JNI_VERSION_1_6) : -1/g' \
+            qtbase/src/corelib/kernel/qjni.cpp
 
-            mkdir -p /build/qt5-build
-            cd /build/qt5-build
+          mkdir -p /build/qt5-build && cd /build/qt5-build
+          export PATH=${TOOLCHAIN}/bin:$PATH
 
-            export OPENSSL_LIBS="-L/opt/openssl-arm64/lib -lssl -lcrypto"
-            export OPENSSL_LIBS="-lssl -lcrypto"
-            export PATH=${TOOLCHAIN}/bin:$PATH
+          ../qt-everywhere-src-5.15.2/configure \
+            -prefix /opt/qt5 \
+            -platform linux-g++ \
+            -xplatform android-clang \
+            -android-ndk ${ANDROID_NDK_HOME} \
+            -android-ndk-host linux-x86_64 \
+            -android-arch arm64-v8a \
+            -android-abis arm64-v8a \
+            -no-gui -no-widgets \
+            -no-opengl -no-vulkan \
+            -openssl-linked -I/opt/openssl/include -L/opt/openssl/lib \
+            -skip qtx11extras -skip qtmacextras -skip qtwinextras \
+            -skip qtdeclarative -skip qtquickcontrols -skip qtquickcontrols2 \
+            -skip qtmultimedia -skip qtwebengine -skip qtwebview \
+            -skip qt3d -skip qtcanvas3d -skip qtcharts -skip qtdatavis3d \
+            -skip qtgamepad -skip qtnetworkauth -skip qtpurchasing \
+            -skip qtremoteobjects -skip qtscxml -skip qtsensors \
+            -skip qtserialbus -skip qtserialport -skip qtspeech \
+            -skip qtvirtualkeyboard -skip qtwebchannel -skip qtwebsockets \
+            -skip qtsvg -skip qtgraphicaleffects -skip qtimageformats \
+            -skip qtlottie -skip qtdoc \
+            -nomake tests -nomake examples \
+            -confirm-license \
+            -opensource
 
-            ../qt-everywhere-src-5.15.2/configure \
-              -prefix /opt/qt5-custom \
-              -platform linux-g++ \
-              -xplatform android-clang \
-              -android-ndk ${ANDROID_NDK_HOME} \
-              -android-sdk /opt/android-sdk \
-              -android-ndk-host linux-x86_64 \
-              -android-arch arm64-v8a \
-              -android-abis arm64-v8a \
-              -no-gui -no-widgets \
-              -no-opengl -no-vulkan \
-              -openssl-linked -I/opt/openssl-arm64/include -L/opt/openssl-arm64/lib \
-              -skip qtx11extras -skip qtmacextras -skip qtwinextras \
-              -skip qtdeclarative -skip qtquickcontrols -skip qtquickcontrols2 \
-              -skip qtmultimedia -skip qtwebengine -skip qtwebview \
-              -skip qt3d -skip qtcanvas3d -skip qtcharts -skip qtdatavis3d \
-              -skip qtgamepad -skip qtnetworkauth -skip qtpurchasing \
-              -skip qtremoteobjects -skip qtscxml -skip qtsensors \
-              -skip qtserialbus -skip qtserialport -skip qtspeech \
-              -skip qtvirtualkeyboard -skip qtwebchannel -skip qtwebsockets \
-              -skip qtsvg -skip qtgraphicaleffects -skip qtimageformats \
-              -skip qtlottie -skip qtdoc \
-              -nomake tests -nomake examples \
-              -confirm-license \
-              -opensource
+          make -j$(nproc)
+          make install
+          cd /build && rm -rf qt5-build qt-everywhere-src-5.15.2
+          echo "Done: Qt5"
 
-            make -j$(nproc)
-            make install
-            cd /build
-            rm -rf qt5-build qt-everywhere-src-5.15.2
-          fi
-          echo "✅ Qt5 built"
-
+          # Step 3: Build Boost
           echo "=== Step 3: Build Boost ==="
           cd /build
-          if [ ! -f /opt/boost-arm64/lib/libboost_system.so ]; then
-            tar xzf /tmp/boost_1_86_0.tar.gz
-            cd boost_1_86_0
+          tar xzf /src/boost_1_86_0.tar.gz
+          cd boost_1_86_0
+          echo "using clang : : ${CXX} : <archiver>${AR} <ranlib>${RANLIB} ;" > user-config.jam
+          ./bootstrap.sh --prefix=/opt/boost
+          ./b2 install --user-config=user-config.jam \
+            toolset=clang \
+            link=shared \
+            threading=multi \
+            variant=release \
+            --with-system \
+            -j$(nproc)
+          cd /build && rm -rf boost_1_86_0
+          echo "Done: Boost"
 
-            echo "using clang : : ${TOOLCHAIN}/bin/${TARGET}-clang++ : <archiver>${TOOLCHAIN}/bin/llvm-ar <ranlib>${TOOLCHAIN}/bin/llvm-ranlib ;" > user-config.jam
-
-            ./bootstrap.sh --prefix=/opt/boost-arm64
-            ./b2 install --user-config=user-config.jam \
-              toolset=clang-arm64 \
-              link=shared \
-              threading=multi \
-              variant=release \
-              --with-system \
-              -j$(nproc)
-
-            cd /build
-            rm -rf boost_1_86_0
-          fi
-          echo "✅ Boost built"
-
+          # Step 4: Build libtorrent
           echo "=== Step 4: Build libtorrent ==="
           cd /build
-          if [ ! -f /opt/libtorrent-arm64/lib/libtorrent-rasterbar.so ]; then
-            tar xzf /tmp/libtorrent-2.0.11.tar.gz
-            cd libtorrent-rasterbar-2.0.11
+          tar xzf /src/libtorrent-2.0.11.tar.gz
+          cd libtorrent-rasterbar-2.0.11
+          mkdir build && cd build
+          cmake .. \
+            -DCMAKE_SYSTEM_NAME=Android \
+            -DCMAKE_SYSTEM_VERSION=${API} \
+            -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
+            -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} \
+            -DCMAKE_C_COMPILER=${CC} \
+            -DCMAKE_CXX_COMPILER=${CXX} \
+            -DCMAKE_CXX_STANDARD=17 \
+            -DCMAKE_INSTALL_PREFIX=/opt/libtorrent \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBoost_INCLUDE_DIR=/opt/boost/include \
+            -DBoost_SYSTEM_LIBRARY=/opt/boost/lib/libboost_system.so \
+            -Dshared=ON \
+            -Dstatic=OFF
+          make -j$(nproc)
+          make install
+          cd /build && rm -rf libtorrent-rasterbar-2.0.11
+          echo "Done: libtorrent"
 
-            export CXX=${TOOLCHAIN}/bin/${TARGET}-clang++
-            export CC=${TOOLCHAIN}/bin/${TARGET}-clang
-            export AR=${TOOLCHAIN}/bin/llvm-ar
-            export RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
-
-            mkdir -p build && cd build
-            cmake .. \
-              -DCMAKE_SYSTEM_NAME=Android \
-              -DCMAKE_SYSTEM_VERSION=${API} \
-              -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
-              -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} \
-              -DCMAKE_C_COMPILER=${CC} \
-              -DCMAKE_CXX_COMPILER=${CXX} \
-              -DCMAKE_CXX_STANDARD=17 \
-              -DCMAKE_INSTALL_PREFIX=/opt/libtorrent-arm64 \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DBoost_INCLUDE_DIR=/opt/boost-arm64/include \
-              -DBoost_SYSTEM_LIBRARY=/opt/boost-arm64/lib/libboost_system.so \
-              -Dshared=ON \
-              -Dstatic=OFF
-
-            make -j$(nproc)
-            make install
-            cd /build
-            rm -rf libtorrent-rasterbar-2.0.11
-          fi
-          echo "✅ libtorrent built"
-
+          # Step 5: Build qBittorrent
           echo "=== Step 5: Build qBittorrent ==="
           cd /build
-          tar xzf /tmp/qbittorrent-4.6.7.tar.gz
+          tar xzf /src/qbittorrent-4.6.7.tar.gz
           cd qbittorrent-4.6.7
 
-          # Copy patches
-          cp -r /build/qbittorrent-src/src/app/android_jni_bridge.cpp src/app/ 2>/dev/null || true
-
-          # Apply patches from source
-          if [ -d /build/qbittorrent-src/src ]; then
-            cp /build/qbittorrent-src/src/app/CMakeLists.txt src/app/CMakeLists.txt
-            cp /build/qbittorrent-src/cmake/Modules/CheckPackages.cmake cmake/Modules/CheckPackages.cmake
+          # Copy patched JNI bridge
+          if [ -f /src/qbittorrent-patch/android_jni_bridge.cpp ]; then
+            cp /src/qbittorrent-patch/android_jni_bridge.cpp src/app/
+          fi
+          if [ -f /src/qbittorrent-patch/CMakeLists.txt ]; then
+            cp /src/qbittorrent-patch/CMakeLists.txt src/app/
+          fi
+          if [ -f /src/qbittorrent-patch/CheckPackages.cmake ]; then
+            cp /src/qbittorrent-patch/CheckPackages.cmake cmake/Modules/
           fi
 
-          mkdir -p build && cd build
-          export CMAKE_PREFIX_PATH="/opt/qt5-custom;/opt/libtorrent-arm64;/opt/boost-arm64;/opt/openssl-arm64"
-          export LD_LIBRARY_PATH="/opt/qt5-custom/lib:/opt/libtorrent-arm64/lib:/opt/boost-arm64/lib:/opt/openssl-arm64/lib"
+          mkdir build && cd build
+          export CMAKE_PREFIX_PATH="/opt/qt5;/opt/libtorrent;/opt/boost;/opt/openssl"
+          export LD_LIBRARY_PATH="/opt/qt5/lib:/opt/libtorrent/lib:/opt/boost/lib:/opt/openssl/lib"
 
           cmake .. \
             -DCMAKE_SYSTEM_NAME=Android \
             -DCMAKE_SYSTEM_VERSION=${API} \
             -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
             -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} \
-            -DCMAKE_C_COMPILER=${TOOLCHAIN}/bin/${TARGET}-clang \
-            -DCMAKE_CXX_COMPILER=${TOOLCHAIN}/bin/${TARGET}-clang++ \
+            -DCMAKE_C_COMPILER=${CC} \
+            -DCMAKE_CXX_COMPILER=${CXX} \
             -DCMAKE_CXX_STANDARD=17 \
             -DCMAKE_INSTALL_PREFIX=/usr/local \
             -DCMAKE_BUILD_TYPE=Release \
             -DQT6=OFF \
             -DWEBUI=ON \
             -DSTACKTRACE=OFF \
-            -DTESTING=OFF \
-            -DVERBOSE_CONFIGURE=OFF
+            -DTESTING=OFF
 
-          make -j$(nproc)
-
-          # Compile translations
-          apt-get update && apt-get install -y qt5-tools
-          mkdir -p src/lang src/webui/www/translations
-          /usr/bin/lrelease ../src/lang/*.ts -qm src/lang/ 2>/dev/null || true
-          /usr/bin/lrelease ../src/webui/www/translations/*.ts -qm src/webui/www/translations/ 2>/dev/null || true
-
-          # Generate QRC files with correct prefix
-          echo '<RCC><qresource prefix="/lang">' > src/lang/lang.qrc
-          for qm in src/lang/*.qm; do echo "    <file>$(basename $qm)</file>" >> src/lang/lang.qrc; done
-          echo '</qresource></RCC>' >> src/lang/lang.qrc
-
-          echo '<RCC><qresource prefix="/www/translations">' > src/webui/www/translations/webui_translations.qrc
-          for qm in src/webui/www/translations/*.qm; do echo "    <file>$(basename $qm)</file>" >> src/webui/www/translations/webui_translations.qrc; done
-          echo '</qresource></RCC>' >> src/webui/www/translations/webui_translations.qrc
-
-          # Rebuild with translations
           make -j$(nproc)
 
           # Collect output
           QBT_LIB=$(find . -name "libqbt*.so" -not -path "*_autogen*" | head -1)
           cp "$QBT_LIB" /output/libqbt.so
-          ${TOOLCHAIN}/bin/llvm-strip /output/libqbt.so
+          ${STRIP} /output/libqbt.so
 
-          echo "✅ qBittorrent built"
+          echo "Done: qBittorrent"
           ls -lh /output/libqbt.so
-          SCRIPT
+          BUILDSCRIPT
 
-          chmod +x build_all_in_docker.sh
+          chmod +x build.sh
 
-          # 构建 Docker 镜像
-          docker build -t qbt-builder -f Dockerfile .
-
-          # 运行构建
+      - name: Build native libraries in Docker
+        run: |
           mkdir -p output
+
+          # Prepare patched source files
+          mkdir -p ci-patches
+          cp docker-sources/qbittorrent/src/app/android_jni_bridge.cpp ci-patches/ 2>/dev/null || true
+          cp docker-sources/qbittorrent/src/app/CMakeLists.txt ci-patches/ 2>/dev/null || true
+          cp docker-sources/qbittorrent/cmake/Modules/CheckPackages.cmake ci-patches/ 2>/dev/null || true
+
           docker run --rm \
-            -v $(pwd)/build_all_in_docker.sh:/build/build_all_in_docker.sh \
-            -v $(pwd)/docker-sources/qbittorrent:/build/qbittorrent-src \
+            -v $(pwd)/build.sh:/build/build.sh:ro \
+            -v $(pwd)/ci-sources:/src:ro \
+            -v $(pwd)/ci-patches:/src/qbittorrent-patch:ro \
             -v $(pwd)/output:/output \
             qbt-builder \
-            bash /build/build_all_in_docker.sh
+            bash /build/build.sh
 
-          echo "✅ Native libraries built successfully"
+          echo "Native libraries built successfully"
+          ls -lh output/
 
       - name: Upload native libraries
         uses: actions/upload-artifact@v4
