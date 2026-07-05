@@ -34,6 +34,9 @@ RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
 
 RUN chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager && \
     chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/avdmanager && \
+    export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 && \
+    export PATH="${JAVA_HOME}/bin:${PATH}" && \
+    java -version && \
     yes | sdkmanager --licenses > /dev/null 2>&1 || true && \
     sdkmanager "platform-tools" "platforms;android-34" "ndk;27.0.12077973" "build-tools;34.0.0"
 
