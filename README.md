@@ -7,7 +7,7 @@
 <p align="center">真正的安卓 qBittorrent 客户端！</p>
 
 <p align="center">
-  <img src="screenshot.jpg" width="270" alt="qBittorrent Android Screenshot">
+  <img src="screenshot.jpg" width="100%" alt="qBittorrent Android Screenshot">
 </p>
 
 将 [qBittorrent](https://www.qbittorrent.org/) 4.6.7 移植到 Android 平台，通过 WebView 访问 WebUI 进行操作。
