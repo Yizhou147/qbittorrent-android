@@ -101,7 +101,7 @@ RUN git clone --depth 1 --recursive --branch v2.0.10 \
 # ===== 编译 Qt5 for Android (qBittorrent 4.6.7 需要) =====
 # Qt5 Android 预编译包已下架，需要从源码编译
 RUN cd /tmp && \
-    curl -fsSL -o qt5-src.tar.xz "https://download.qt.io/official_releases/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz" && \
+    curl -fsSL -o qt5-src.tar.xz "https://download.qt.io/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz" && \
     tar xf qt5-src.tar.xz && \
     mv qt-everywhere-src-5.15.2 /opt/qt5-src && \
     rm qt5-src.tar.xz
@@ -125,12 +125,12 @@ RUN cd /opt/qt5-src && \
     make -j$(nproc) && make install
 
 # 使用 NDK 交叉编译 Qt5 for Android ARM64 (只编译 qtbase)
-RUN cd /opt/qt5-src && \
+RUN cd /opt/qt5-src/qtbase && \
     export ANDROID_SDK_ROOT=${ANDROID_HOME} && \
     export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
     export PATH=/opt/qt5-host/bin:${TOOLCHAIN}/bin:${PATH} && \
     export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 && \
-    # 使用 android-clang 配置（Qt5.15.2 需要这个平台名）
+    # 使用 mkspecs 目录中的 android-clang 配置
     ./configure \
         -prefix /opt/qt5-android \
         -opensource -confirm-license \
@@ -141,19 +141,8 @@ RUN cd /opt/qt5-src && \
         -android-abis arm64-v8a \
         -android-api-level 24 \
         -nomake tests -nomake examples \
-        -skip qtwebengine -skip qt3d -skip qtquick3d \
-        -skip qtdatavis3d -skip qtlottie -skip qtscxml \
-        -skip qtspeech -skip qtgamepad -skip qtpurchasing \
-        -skip qtremoteobjects -skip qtsensors -skip qtserialbus \
-        -skip qtserialport -skip qtlocation -skip qtmultimedia \
-        -skip qtwebview -skip qtwebsockets -skip qtwebchannel \
-        -skip qtconnectivity -skip qtgraphicaleffects \
-        -skip qtquickcontrols -skip qtquickcontrols2 \
-        -skip qtdeclarative -skip qtxmlpatterns \
-        -skip qtcanvas3d -skip qtdoc -skip qttranslations \
-        -skip qtactiveqt -skip qtx11extras \
         -no-compile-examples && \
-    make -j$(nproc) module-qtbase && make install
+    make -j$(nproc) && make install
 
 # ===== 编译 qBittorrent =====
 RUN git clone --depth 1 --branch release-4.6.7 \
