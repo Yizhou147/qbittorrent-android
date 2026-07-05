@@ -1,4 +1,4 @@
-# qBittorrent for Android
+# qBittorrent for Android 真正的安卓qBittorrent客户端！
 
 将 [qBittorrent](https://www.qbittorrent.org/) 4.6.7 移植到 Android 平台，通过 WebView 访问 WebUI 进行操作。
 
