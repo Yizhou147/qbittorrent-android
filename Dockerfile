@@ -32,13 +32,12 @@ RUN mkdir -p ${ANDROID_HOME}/cmdline-tools && \
     mv ${ANDROID_HOME}/cmdline-tools/cmdline-tools ${ANDROID_HOME}/cmdline-tools/latest && \
     rm cmdtools.zip
 
-ENV PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}"
-
-# 确保 sdkmanager 有执行权限并接受许可
 RUN chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager && \
     chmod +x ${ANDROID_HOME}/cmdline-tools/latest/bin/avdmanager && \
     yes | sdkmanager --licenses > /dev/null 2>&1 || true && \
     sdkmanager "platform-tools" "platforms;android-34" "ndk;27.0.12077973" "build-tools;34.0.0"
+
+ENV PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 
 # ===== 编译 OpenSSL =====
 WORKDIR /build
@@ -58,8 +57,6 @@ RUN curl -fsSL "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar
     cd boost_1_86_0 && \
     ./bootstrap.sh --with-toolset=clang && \
     echo "using clang : android : ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ : <archiver>${TOOLCHAIN}/bin/llvm-ar <ranlib>${TOOLCHAIN}/bin/llvm-ranlib <linkflags>-llog <compileflags>--target=aarch64-linux-android24 <compileflags>-fPIC ;" > user-config.jam && \
-    cat user-config.jam && \
-    ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ --version && \
     ./b2 install \
         --prefix=${PREFIX} \
         --with-system --with-filesystem --with-thread \
@@ -104,17 +101,23 @@ RUN git clone --depth 1 --recursive --branch v2.0.10 \
     cmake --build . -j$(nproc) && cmake --install .
 
 # ===== 编译 Qt5 for Android (qBittorrent 4.6.7 需要) =====
-# 下载 NDK r21e (Qt5.15.2 支持的版本)
-RUN cd /tmp && \
-    curl -fsSL -o ndk-r21e.zip "https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip" && \
-    unzip -q ndk-r21e.zip -d /opt && \
+# 下载 NDK r21e (Qt5 需要)
+RUN curl -fsSL -o /tmp/ndk-r21e.zip \
+      "https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip" && \
+    unzip -q /tmp/ndk-r21e.zip -d /opt && \
     mv /opt/android-ndk-r21e /opt/ndk-r21 && \
-    rm ndk-r21e.zip
+    rm /tmp/ndk-r21e.zip
 
+# 下载 Qt5 源码
 RUN curl -fsSL "https://download.qt.io/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz" -o /tmp/qt5.tar.xz && \
     tar xf /tmp/qt5.tar.xz -C /opt && \
     mv /opt/qt-everywhere-src-5.15.2 /opt/qt5-src && \
     rm /tmp/qt5.tar.xz
+
+# 修补 Qt5 源码以兼容 NDK r21e 的 clang
+RUN cd /opt/qt5-src && \
+    sed -i '1i #include <limits>' qtbase/src/corelib/global/qfloat16.h && \
+    sed -i '1i #include <limits>' qtbase/src/corelib/global/qendian.h
 
 # 使用 NDK r21 交叉编译 Qt5 for Android ARM64
 RUN cd /opt/qt5-src && \
@@ -142,7 +145,7 @@ RUN cd /opt/qt5-src && \
 RUN git clone --depth 1 --branch release-4.6.7 \
       https://gitclone.com/github.com/qbittorrent/qBittorrent.git /build/qbittorrent-src && \
     cd /build/qbittorrent-src && mkdir build && cd build && \
-    QT5_DIR=$(find /opt/qt5 -name "Qt5Config.cmake" -exec dirname {} \; | head -1) && \
+    QT5_DIR=$(find /opt/qt5-android -name "Qt5Config.cmake" -exec dirname {} \; | head -1) && \
     echo "Qt5 found at: $QT5_DIR" && \
     cmake .. \
         -G Ninja \
@@ -152,7 +155,7 @@ RUN git clone --depth 1 --branch release-4.6.7 \
         -DCMAKE_INSTALL_PREFIX=${PREFIX} \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_STANDARD=17 \
-        -DCMAKE_FIND_ROOT_PATH="${PREFIX};/opt/qt5" \
+        -DCMAKE_FIND_ROOT_PATH="${PREFIX};/opt/qt5-android" \
         -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
         -DQt5_DIR=$QT5_DIR \
         -DGUI=OFF \
