@@ -124,14 +124,17 @@ RUN cd /opt/qt5-src && \
         -skip qtactiveqt -skip qtx11extras && \
     make -j$(nproc) && make install
 
-# 使用 NDK 交叉编译 Qt5 for Android ARM64
+# 使用 NDK 交叉编译 Qt5 for Android ARM64 (只编译 qtbase)
 RUN cd /opt/qt5-src && \
     export ANDROID_SDK_ROOT=${ANDROID_HOME} && \
     export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
     export PATH=/opt/qt5-host/bin:${TOOLCHAIN}/bin:${PATH} && \
     export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 && \
-    ./configure -prefix /opt/qt5-android \
+    # 使用 android-clang 配置（Qt5.15.2 需要这个平台名）
+    ./configure \
+        -prefix /opt/qt5-android \
         -opensource -confirm-license \
+        -platform linux-g++ \
         -xplatform android-clang \
         -android-ndk ${ANDROID_NDK} \
         -android-sdk ${ANDROID_HOME} \
@@ -150,7 +153,7 @@ RUN cd /opt/qt5-src && \
         -skip qtcanvas3d -skip qtdoc -skip qttranslations \
         -skip qtactiveqt -skip qtx11extras \
         -no-compile-examples && \
-    make -j$(nproc) && make install
+    make -j$(nproc) module-qtbase && make install
 
 # ===== 编译 qBittorrent =====
 RUN git clone --depth 1 --branch release-4.6.7 \
