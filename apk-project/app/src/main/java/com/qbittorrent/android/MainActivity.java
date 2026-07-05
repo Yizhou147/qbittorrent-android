@@ -12,6 +12,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.Settings;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -30,6 +31,8 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -38,6 +41,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_PERMISSION = 100;
     private static final int REQUEST_MANAGE_STORAGE = 101;
+    private static final int REQUEST_FILE_CHOOSER = 102;
 
     private WebView webView;
     private TextView tvLog;
@@ -47,6 +51,7 @@ public class MainActivity extends AppCompatActivity {
     private Button btnExportLog;
     private boolean serviceStarted = false;
     private boolean showingWebView = false;
+    private ValueCallback<Uri[]> fileUploadCallback;
     private final StringBuilder logBuffer = new StringBuilder();
 
     private final BroadcastReceiver logReceiver = new BroadcastReceiver() {
@@ -85,6 +90,9 @@ public class MainActivity extends AppCompatActivity {
         } else {
             requestPermissions();
         }
+
+        // 处理外部传入的 intent（.torrent 文件或 magnet 链接）
+        handleIncomingIntent(getIntent());
     }
 
     private void appendLog(String level, String message) {
@@ -155,6 +163,11 @@ public class MainActivity extends AppCompatActivity {
         settings.setAllowContentAccess(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        settings.setSupportZoom(true);
+        settings.setBuiltInZoomControls(true);
+        settings.setDisplayZoomControls(false);
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -167,7 +180,22 @@ public class MainActivity extends AppCompatActivity {
                 return false;
             }
         });
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView webView,
+                    ValueCallback<Uri[]> filePathCallback,
+                    FileChooserParams fileChooserParams) {
+                if (fileUploadCallback != null) {
+                    fileUploadCallback.onReceiveValue(null);
+                }
+                fileUploadCallback = filePathCallback;
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("*/*");
+                startActivityForResult(Intent.createChooser(intent, "选择文件"), REQUEST_FILE_CHOOSER);
+                return true;
+            }
+        });
     }
 
     private void addMagnetLink(String magnetUri) {
@@ -175,6 +203,112 @@ public class MainActivity extends AppCompatActivity {
         String url = "http://localhost:8080/api/v2/torrents/add?urls=" + encodedUri;
         webView.loadUrl("javascript:fetch('" + url + "', {method: 'POST', credentials: 'include'})");
         Toast.makeText(this, "已添加到下载队列", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        handleIncomingIntent(intent);
+    }
+
+    private void handleIncomingIntent(Intent intent) {
+        if (intent == null) return;
+        String action = intent.getAction();
+        Uri data = intent.getData();
+
+        if (Intent.ACTION_VIEW.equals(action) && data != null) {
+            String scheme = data.getScheme();
+            if ("magnet".equals(scheme)) {
+                addMagnetLinkDelayed(data.toString());
+            } else if ("content".equals(scheme) || "file".equals(scheme)) {
+                importTorrentFile(data);
+            }
+        }
+    }
+
+    private void addMagnetLinkDelayed(String magnetUri) {
+        new Thread(() -> {
+            for (int i = 0; i < 60; i++) {
+                try {
+                    Thread.sleep(1000);
+                    java.net.Socket s = new java.net.Socket();
+                    s.connect(new java.net.InetSocketAddress("127.0.0.1", 8080), 1000);
+                    s.close();
+                    break;
+                } catch (Exception ignored) {}
+            }
+            runOnUiThread(() -> {
+                if (showingWebView) {
+                    addMagnetLink(magnetUri);
+                } else {
+                    toggleWebView();
+                    webView.postDelayed(() -> addMagnetLink(magnetUri), 2000);
+                }
+            });
+        }).start();
+    }
+
+    private void importTorrentFile(Uri torrentUri) {
+        new Thread(() -> {
+            try {
+                InputStream is = getContentResolver().openInputStream(torrentUri);
+                if (is == null) return;
+                File tmpFile = new File(getCacheDir(), "import_" + System.currentTimeMillis() + ".torrent");
+                FileOutputStream fos = new FileOutputStream(tmpFile);
+                byte[] buf = new byte[8192];
+                int len;
+                while ((len = is.read(buf)) > 0) {
+                    fos.write(buf, 0, len);
+                }
+                fos.close();
+                is.close();
+
+                for (int i = 0; i < 60; i++) {
+                    try {
+                        Thread.sleep(1000);
+                        java.net.Socket s = new java.net.Socket();
+                        s.connect(new java.net.InetSocketAddress("127.0.0.1", 8080), 1000);
+                        s.close();
+                        break;
+                    } catch (Exception ignored) {}
+                }
+
+                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL("http://127.0.0.1:8080/api/v2/torrents/add").openConnection();
+                conn.setRequestMethod("POST");
+                conn.setDoOutput(true);
+                String boundary = "----FormBoundary" + System.currentTimeMillis();
+                conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+
+                java.io.OutputStream os = conn.getOutputStream();
+                String header = "--" + boundary + "\r\n" +
+                        "Content-Disposition: form-data; name=\"torrents\"; filename=\"" + tmpFile.getName() + "\"\r\n" +
+                        "Content-Type: application/x-bittorrent\r\n\r\n";
+                os.write(header.getBytes("UTF-8"));
+                java.io.FileInputStream fis = new java.io.FileInputStream(tmpFile);
+                byte[] buf2 = new byte[8192];
+                int len2;
+                while ((len2 = fis.read(buf2)) > 0) {
+                    os.write(buf2, 0, len2);
+                }
+                fis.close();
+                os.write(("\r\n--" + boundary + "--\r\n").getBytes("UTF-8"));
+                os.flush();
+                os.close();
+
+                int code = conn.getResponseCode();
+                conn.disconnect();
+                tmpFile.delete();
+
+                String msg = (code == 200) ? "种子文件已导入" : "导入失败，HTTP " + code;
+                runOnUiThread(() -> Toast.makeText(this, msg, Toast.LENGTH_SHORT).show());
+
+                if (showingWebView) {
+                    runOnUiThread(() -> webView.loadUrl("javascript:location.reload()"));
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "导入失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        }).start();
     }
 
     private boolean checkPermissions() {
@@ -227,6 +361,18 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 Toast.makeText(this, "需要存储权限才能下载文件", Toast.LENGTH_LONG).show();
                 finish();
+            }
+        } else if (requestCode == REQUEST_FILE_CHOOSER) {
+            if (fileUploadCallback != null) {
+                Uri[] result = null;
+                if (resultCode == RESULT_OK && data != null) {
+                    String dataString = data.getDataString();
+                    if (dataString != null) {
+                        result = new Uri[]{Uri.parse(dataString)};
+                    }
+                }
+                fileUploadCallback.onReceiveValue(result);
+                fileUploadCallback = null;
             }
         }
     }
