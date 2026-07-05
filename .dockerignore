@@ -1,0 +1,12 @@
+.git
+.github
+*.md
+apk-project
+output
+build.sh
+LICENSE
+docker-sources/qt-everywhere-src-5.15.2.tar.xz
+docker-sources/android-ndk-r21e-linux-x86_64.zip
+docker-sources/platform-34.zip
+docker-sources/build-tools-r34.zip
+Dockerfile.qt5

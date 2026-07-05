@@ -1,0 +1,12 @@
+# Build logs
+*.log
+
+# Docker output
+output/
+
+# Source code (downloaded during Docker build)
+docker-sources/
+
+# Temporary files
+*.tmp
+*.bak
