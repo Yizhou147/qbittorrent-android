@@ -141,6 +141,7 @@ RUN cd /opt/qt5-src/qtbase && \
         -android-abis arm64-v8a \
         -android-api-level 24 \
         -nomake tests -nomake examples \
+        -no-gui \
         -no-compile-examples && \
     make -j$(nproc) && make install
 
