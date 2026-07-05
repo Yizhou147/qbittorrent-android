@@ -11,24 +11,31 @@ import android.os.Environment;
 import android.os.IBinder;
 import android.util.Log;
 
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.Socket;
+import java.net.URL;
+import java.net.URLEncoder;
 
 public class QBittorrentService extends Service {
 
     private static final String TAG = "QBittorrentService";
+    public static final String ACTION_LOG = "com.qbittorrent.android.LOG";
+    public static final String EXTRA_MESSAGE = "message";
+    public static final String EXTRA_LEVEL = "level";
     private static final String CHANNEL_ID = "qbittorrent_service";
     private static final int NOTIFICATION_ID = 1;
 
-    private Process qbtProcess;
-    private File binaryFile;
-    private File configDir;
-    private File downloadsDir;
+    private static volatile boolean nativeMainRunning = false;
 
     @Override
     public void onCreate() {
@@ -38,96 +45,277 @@ public class QBittorrentService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        // 前台服务通知
         Notification notification = buildNotification();
         startForeground(NOTIFICATION_ID, notification);
-
-        // 在后台线程启动 qBittorrent
-        new Thread(this::startQBittorrent).start();
-
+        if (!nativeMainRunning) {
+            new Thread(this::startQBittorrent).start();
+        } else {
+            broadcastLog("INFO", "qBittorrent 已在运行中");
+        }
         return START_STICKY;
+    }
+
+    private void broadcastLog(String level, String message) {
+        Log.d(TAG, "[" + level + "] " + message);
+        Intent logIntent = new Intent(ACTION_LOG);
+        logIntent.putExtra(EXTRA_MESSAGE, message);
+        logIntent.putExtra(EXTRA_LEVEL, level);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(logIntent);
+    }
+
+    /** 运行测试二进制，返回 exitCode */
+    private int runTest(String libDir, String binaryPath, String... args) {
+        try {
+            String[] cmd = new String[1 + args.length];
+            cmd[0] = binaryPath;
+            System.arraycopy(args, 0, cmd, 1, args.length);
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.environment().put("LD_LIBRARY_PATH", libDir);
+            pb.environment().put("QT_PLUGIN_PATH", libDir);
+            pb.environment().put("HOME", new File(getFilesDir(), "config").getAbsolutePath());
+            pb.environment().put("TMPDIR", getCacheDir().getAbsolutePath());
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String output = readStream(p.getInputStream());
+            int exit = p.waitFor();
+            if (!output.isEmpty()) broadcastLog("INFO", "  output: " + output.trim());
+            return exit;
+        } catch (Exception e) {
+            broadcastLog("ERROR", "  exception: " + e.getMessage());
+            return -1;
+        }
+    }
+
+    /** 读取流的全部内容（阻塞直到流关闭） */
+    private String readStream(InputStream is) {
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append("\n");
+            }
+        } catch (IOException ignored) {}
+        return sb.toString();
+    }
+
+    /** 运行一条 shell 命令并返回 stdout+stderr */
+    private String runShell(String cmd) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("sh", "-c", cmd);
+            pb.environment().put("LD_LIBRARY_PATH", getNativeLibDir());
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            String output = readStream(p.getInputStream());
+            p.waitFor();
+            return output.trim();
+        } catch (Exception e) {
+            return "ERROR: " + e.getMessage();
+        }
+    }
+
+    private String getNativeLibDir() {
+        String apkPath = getPackageCodePath();
+        File appDir = new File(apkPath).getParentFile();
+        File libDir = new File(appDir, "lib/arm64");
+        if (!libDir.exists()) {
+            libDir = new File(appDir, "lib/arm64-v8a");
+        }
+        try {
+            return libDir.getCanonicalPath();
+        } catch (IOException e) {
+            return libDir.getAbsolutePath();
+        }
+    }
+
+    // JNI: call qBittorrent main() in-process (needed for Qt5 JNI initialization)
+    private native int nativeMain(String[] args);
+
+    /** 写入默认配置（首次启动），已存在则跳过 */
+    private boolean writeDefaultConfig(File profileDir) {
+        File cfgDir = new File(profileDir, "qBittorrent/config");
+        cfgDir.mkdirs();
+        File cfgFile = new File(cfgDir, "qBittorrent.conf");
+        if (cfgFile.exists()) return false; // 已有配置
+        String cfg = "[BitTorrent]\n" +
+                "Session\\Port=59342\n" +
+                "Session\\QueueingSystemEnabled=false\n\n" +
+                "[Meta]\n" +
+                "MigrationVersion=6\n\n" +
+                "[Preferences]\n" +
+                "WebUI\\LocalHostAuth=false\n" +
+                "WebUI\\Username=admin\n" +
+                "WebUI\\Port=8080\n" +
+                "General\\Locale=zh_CN\n";
+        try (FileWriter w = new FileWriter(cfgFile)) {
+            w.write(cfg);
+            return true;
+        } catch (IOException e) {
+            broadcastLog("WARN", "写入默认配置失败: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /** 读取配置文件内容 */
+    private String readFile(File f) {
+        StringBuilder sb = new StringBuilder();
+        try (BufferedReader r = new BufferedReader(new FileReader(f))) {
+            String line;
+            while ((line = r.readLine()) != null) sb.append(line).append("\n");
+        } catch (IOException ignored) {}
+        return sb.toString();
+    }
+
+    /** WebUI 就绪后，首次启动时通过 API 设置密码并显示在日志中 */
+    private void setInitialPassword(File profileDir) {
+        File cfgFile = new File(profileDir, "qBittorrent/config/qBittorrent.conf");
+        String content = readFile(cfgFile);
+        if (content.contains("Password_PBKDF2")) {
+            // 密码已设置，不重复显示
+            broadcastLog("INFO", "WebUI 已有密码配置，跳过默认密码设置");
+            return;
+        }
+        // 首次启动：通过 API 设置默认密码
+        try {
+            URL url = new URL("http://127.0.0.1:8080/api/v2/app/setPreferences");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("POST");
+            conn.setDoOutput(true);
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(3000);
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+            String json = "{\"web_ui_password\":\"adminadmin\"}";
+            String params = "json=" + URLEncoder.encode(json, "UTF-8");
+            try (OutputStream os = conn.getOutputStream()) {
+                os.write(params.getBytes("UTF-8"));
+            }
+            int code = conn.getResponseCode();
+            conn.disconnect();
+            if (code == 200) {
+                broadcastLog("INFO", "========================================");
+                broadcastLog("INFO", "WebUI 默认密码已设置");
+                broadcastLog("INFO", "  用户名: admin");
+                broadcastLog("INFO", "  密码: adminadmin");
+                broadcastLog("INFO", "  (仅首次显示，后续启动不再提示)");
+                broadcastLog("INFO", "========================================");
+            } else {
+                broadcastLog("WARN", "设置密码失败，HTTP " + code);
+            }
+        } catch (Exception e) {
+            broadcastLog("WARN", "设置密码失败: " + e.getMessage());
+        }
     }
 
     private void startQBittorrent() {
         try {
-            // 准备目录
-            File dataDir = getFilesDir();
-            configDir = new File(dataDir, "config");
-            downloadsDir = new File(Environment.getExternalStoragePublicDirectory(
-                    Environment.DIRECTORY_DOWNLOADS), "qBittorrent");
+            String nativeLibDir = getNativeLibDir();
+            broadcastLog("INFO", "nativeLibDir: " + nativeLibDir);
 
+            // 列出 nativeLibDir 中的所有文件
+            File libDirFile = new File(nativeLibDir);
+            String[] files = libDirFile.list();
+            if (files != null) {
+                for (String f : files) {
+                    File ff = new File(libDirFile, f);
+                    broadcastLog("INFO", "  " + f + " (" + (ff.length() / 1024) + " KB)");
+                }
+            }
+
+            broadcastLog("INFO", "正在启动 qBittorrent (JNI in-process)...");
+
+            File configDir = new File(getFilesDir(), "config");
+            File downloadsDir = new File(Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS), "qBittorrent");
             configDir.mkdirs();
             downloadsDir.mkdirs();
 
-            // 释放 native binary
-            binaryFile = new File(dataDir, "qbittorrent-nox");
-            if (!binaryFile.exists()) {
-                extractBinary();
+            // 首次启动写入默认配置（含中文语言）
+            boolean firstRun = writeDefaultConfig(configDir);
+            if (firstRun) {
+                broadcastLog("INFO", "首次启动，已写入默认配置（中文界面）");
             }
-            binaryFile.setExecutable(true);
 
-            // 构建启动命令
-            String[] cmd = {
-                    binaryFile.getAbsolutePath(),
+            broadcastLog("INFO", "配置目录: " + configDir.getAbsolutePath());
+            broadcastLog("INFO", "下载目录: " + downloadsDir.getAbsolutePath());
+
+            // Set environment variables for Qt5
+            System.setProperty("HOME", configDir.getAbsolutePath());
+            System.setProperty("TMPDIR", getCacheDir().getAbsolutePath());
+
+            // Load Qt5 libraries first (triggers their JNI_OnLoad → sets JavaVM)
+            broadcastLog("INFO", "Loading Qt5 libraries via System.loadLibrary...");
+            System.loadLibrary("Qt5Core_arm64-v8a");
+            broadcastLog("INFO", "  Qt5Core loaded");
+            System.loadLibrary("Qt5Network_arm64-v8a");
+            broadcastLog("INFO", "  Qt5Network loaded");
+            System.loadLibrary("Qt5Xml_arm64-v8a");
+            broadcastLog("INFO", "  Qt5Xml loaded");
+            System.loadLibrary("Qt5Sql_arm64-v8a");
+            broadcastLog("INFO", "  Qt5Sql loaded");
+
+            // Load libtorrent
+            System.loadLibrary("torrent-rasterbar");
+            broadcastLog("INFO", "  libtorrent loaded");
+
+            // Load qBittorrent (this has the JNI nativeMain function)
+            System.loadLibrary("qbt");
+            broadcastLog("INFO", "  libqbt loaded, calling nativeMain...");
+
+            nativeMainRunning = true;
+            broadcastLog("INFO", "进程已启动");
+
+            // Build arguments
+            String[] args = {
+                    "qbittorrent-nox",
                     "--profile=" + configDir.getAbsolutePath(),
                     "--save-path=" + downloadsDir.getAbsolutePath(),
-                    "--webui-port=8080",
-                    "--daemon"
+                    "--webui-port=8080"
             };
+            broadcastLog("INFO", "启动命令: " + String.join(" ", args));
 
-            Log.i(TAG, "Starting qBittorrent: " + String.join(" ", cmd));
-
-            // 启动进程
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.environment().put("HOME", configDir.getAbsolutePath());
-            pb.environment().put("TMPDIR", getCacheDir().getAbsolutePath());
-            pb.redirectErrorStream(true);
-            qbtProcess = pb.start();
-
-            // 读取输出 (后台)
+            // Run in a separate thread to avoid blocking the service
             new Thread(() -> {
-                try (BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(qbtProcess.getInputStream()))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        Log.d(TAG, "qBittorrent: " + line);
-                    }
-                } catch (IOException e) {
-                    Log.e(TAG, "Error reading output", e);
+                try {
+                    int exitCode = nativeMain(args);
+                    nativeMainRunning = false;
+                    broadcastLog("WARN", "qBittorrent exited, exitCode=" + exitCode);
+                } catch (UnsatisfiedLinkError e) {
+                    nativeMainRunning = false;
+                    broadcastLog("ERROR", "JNI error: " + e.getMessage());
+                    Log.e(TAG, "JNI error", e);
+                } catch (Exception e) {
+                    nativeMainRunning = false;
+                    broadcastLog("ERROR", "启动失败: " + e.getMessage());
+                    Log.e(TAG, "Failed to start qBittorrent", e);
                 }
             }).start();
 
-            // 等待进程退出
-            int exitCode = qbtProcess.waitFor();
-            Log.w(TAG, "qBittorrent exited with code: " + exitCode);
+            // Wait for WebUI port to be ready, then set password on first run
+            final File profileDir = configDir;
+            new Thread(() -> {
+                for (int i = 0; i < 30; i++) {
+                    try {
+                        Thread.sleep(1000);
+                        Socket s = new Socket("127.0.0.1", 8080);
+                        s.close();
+                        broadcastLog("INFO", "WebUI 就绪: http://localhost:8080");
+                        // 首次启动设置默认密码
+                        try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                        setInitialPassword(profileDir);
+                        return;
+                    } catch (Exception ignored) {}
+                }
+                broadcastLog("WARN", "WebUI 端口 8080 未就绪（超时30秒）");
+            }).start();
 
-            // 如果异常退出，尝试重启
-            if (exitCode != 0) {
-                Log.i(TAG, "Restarting in 5 seconds...");
-                Thread.sleep(5000);
-                startQBittorrent();
-            }
+            broadcastLog("INFO", "qBittorrent 启动线程已创建");
 
+        } catch (UnsatisfiedLinkError e) {
+            broadcastLog("ERROR", "加载库失败: " + e.getMessage());
+            Log.e(TAG, "Failed to load library", e);
         } catch (Exception e) {
+            broadcastLog("ERROR", "启动失败: " + e.getMessage());
             Log.e(TAG, "Failed to start qBittorrent", e);
         }
-    }
-
-    private void extractBinary() throws IOException {
-        Log.i(TAG, "Extracting qBittorrent binary...");
-
-        // 从 assets 复制
-        InputStream is = getAssets().open("qbittorrent-nox");
-        OutputStream os = new FileOutputStream(binaryFile);
-        byte[] buffer = new byte[8192];
-        int read;
-        while ((read = is.read(buffer)) != -1) {
-            os.write(buffer, 0, read);
-        }
-        os.close();
-        is.close();
-
-        Log.i(TAG, "Binary extracted to: " + binaryFile.getAbsolutePath());
     }
 
     private void createNotificationChannel() {
@@ -169,10 +357,8 @@ public class QBittorrentService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (qbtProcess != null) {
-            qbtProcess.destroy();
-        }
-        Log.i(TAG, "Service destroyed");
+        nativeMainRunning = false;
+        broadcastLog("INFO", "服务已停止");
     }
 
     @Override
