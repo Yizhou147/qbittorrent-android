@@ -34,7 +34,7 @@ jobs:
               sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
               apt-get update && apt-get install -y --no-install-recommends \
               build-essential cmake ninja-build pkg-config clang perl \
-              curl wget unzip tar xz-utils python3 \
+              curl wget unzip tar xz-utils python3 python3-pip \
               openjdk-17-jdk-headless ca-certificates && \
               rm -rf /var/lib/apt/lists/*
           RUN mkdir -p /build /src /output
@@ -50,8 +50,6 @@ jobs:
             "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz" || \
           curl -L --retry 3 --connect-timeout 30 -o ci-sources/openssl-3.3.2.tar.gz \
             "https://www.openssl.org/source/openssl-3.3.2.tar.gz"
-          curl -L --retry 3 --connect-timeout 30 -o ci-sources/qt-everywhere-src-5.15.2.tar.xz \
-            "https://mirrors.tuna.tsinghua.edu.cn/qt/archive/qt/5.15/5.15.2/single/qt-everywhere-src-5.15.2.tar.xz"
           curl -L --retry 3 --connect-timeout 30 -o ci-sources/boost_1_86_0.tar.gz \
             "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz"
           curl -L --retry 3 --connect-timeout 30 -o ci-sources/libtorrent-2.0.11.tar.gz \
@@ -110,6 +108,18 @@ jobs:
         with:
           name: native-libs
           path: apk-project/app/src/main/jniLibs/arm64-v8a/
+
+      - name: Organize native libraries
+        run: |
+          cd apk-project/app/src/main/jniLibs/arm64-v8a
+          # Move .so files from lib/ subdirectory to current directory
+          if [ -d lib ]; then
+            mv lib/*.so . 2>/dev/null || true
+            rmdir lib 2>/dev/null || true
+          fi
+          # Remove non-library files
+          rm -f qbittorrent-nox 2>/dev/null || true
+          ls -la
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
