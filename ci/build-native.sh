@@ -66,11 +66,11 @@ echo "using clang : android : ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ :
 cd /build && rm -rf boost_1_86_0
 echo "Done: Boost"
 
-# Step 4: Build libtorrent (v2.0.10 - same as local)
+# Step 4: Build libtorrent (from local source archive - same as local Docker build)
 echo "=== Step 4: Build libtorrent ==="
 cd /build
-tar xzf /src/libtorrent-2.0.10.tar.gz
-cd libtorrent-rasterbar-2.0.10
+tar xzf /src/docker-sources-libtorrent.tar.gz
+cd libtorrent
 mkdir build && cd build
 cmake .. \
   -G Ninja \
@@ -98,25 +98,14 @@ cmake .. \
   -Dencryption=ON
 cmake --build . -j$(nproc)
 cmake --install .
-cd /build && rm -rf libtorrent-rasterbar-2.0.10
+cd /build && rm -rf libtorrent
 echo "Done: libtorrent"
 
-# Step 5: Build qBittorrent (from official tarball + Android patches)
+# Step 5: Build qBittorrent (from local source archive - already patched)
 echo "=== Step 5: Build qBittorrent ==="
 cd /build
-tar xzf /src/qbittorrent-4.6.7.tar.gz
-cd qBittorrent-release-4.6.7
-
-# Apply Android patches (same as local docker-sources/qbittorrent modifications)
-echo "Applying Android patches..."
-# 1. JNI bridge (new file for Android in-process loading)
-cp /patches/android_jni_bridge.cpp src/app/
-# 2. Modified src/app/CMakeLists.txt (build as shared lib on Android, skip LinguistTools)
-cp /patches/app_CMakeLists.txt src/app/CMakeLists.txt
-# 3. Modified cmake/Modules/CheckPackages.cmake (make LinguistTools optional for Qt5)
-cp /patches/CheckPackages.cmake cmake/Modules/CheckPackages.cmake
-# 4. Patch resumedatastorage.cpp to replace QThread::create (not available in Android Qt5)
-python3 /patches/patch_resumedata.py src/base/bittorrent/resumedatastorage.cpp
+tar xzf /src/docker-sources-qbittorrent.tar.gz
+cd qbittorrent
 
 mkdir build && cd build
 cmake .. \
@@ -149,7 +138,7 @@ cmake .. \
   -DLibtorrentRasterbar_DIR=${PREFIX}/lib/cmake/LibtorrentRasterbar
 cmake --build . -j$(nproc)
 cmake --install .
-cd /build && rm -rf qBittorrent-release-4.6.7
+cd /build && rm -rf qbittorrent
 
 # ===== Collect output (matching Dockerfile) =====
 mkdir -p /output/lib
