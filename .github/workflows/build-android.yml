@@ -52,8 +52,8 @@ jobs:
             "https://www.openssl.org/source/openssl-3.3.2.tar.gz"
           curl -L --retry 3 --connect-timeout 30 -o ci-sources/boost_1_86_0.tar.gz \
             "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz"
-          curl -L --retry 3 --connect-timeout 30 -o ci-sources/libtorrent-2.0.11.tar.gz \
-            "https://github.com/arvidn/libtorrent/releases/download/v2.0.11/libtorrent-rasterbar-2.0.11.tar.gz"
+          curl -L --retry 3 --connect-timeout 30 -o ci-sources/libtorrent-2.0.10.tar.gz \
+            "https://github.com/arvidn/libtorrent/releases/download/v2.0.10/libtorrent-rasterbar-2.0.10.tar.gz"
           curl -L --retry 3 --connect-timeout 30 -o ci-sources/qbittorrent-4.6.7.tar.gz \
             "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-4.6.7.tar.gz"
           echo "=== Verifying downloads ==="

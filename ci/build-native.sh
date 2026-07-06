@@ -66,11 +66,11 @@ echo "using clang : android : ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ :
 cd /build && rm -rf boost_1_86_0
 echo "Done: Boost"
 
-# Step 4: Build libtorrent
+# Step 4: Build libtorrent (v2.0.10 - same as local)
 echo "=== Step 4: Build libtorrent ==="
 cd /build
-tar xzf /src/libtorrent-2.0.11.tar.gz
-cd libtorrent-rasterbar-2.0.11
+tar xzf /src/libtorrent-2.0.10.tar.gz
+cd libtorrent-rasterbar-2.0.10
 mkdir build && cd build
 cmake .. \
   -G Ninja \
@@ -98,34 +98,24 @@ cmake .. \
   -Dencryption=ON
 cmake --build . -j$(nproc)
 cmake --install .
-cd /build && rm -rf libtorrent-rasterbar-2.0.11
-
-# Strip libtorrent shared library (remove debug symbols, ~124MB -> ~10MB)
-echo "Stripping libtorrent-rasterbar.so..."
-${STRIP} ${PREFIX}/lib/libtorrent-rasterbar.so
-ls -lh ${PREFIX}/lib/libtorrent-rasterbar.so
-
-# Verify required symbols are exported
-echo "Verifying libtorrent symbols..."
-${TOOLCHAIN}/bin/llvm-nm -D ${PREFIX}/lib/libtorrent-rasterbar.so | grep -c "add_torrent_params" && echo "OK: add_torrent_params symbols found" || echo "WARNING: add_torrent_params symbols NOT found"
-
+cd /build && rm -rf libtorrent-rasterbar-2.0.10
 echo "Done: libtorrent"
 
-# Step 5: Build qBittorrent
+# Step 5: Build qBittorrent (from official tarball + Android patches)
 echo "=== Step 5: Build qBittorrent ==="
 cd /build
 tar xzf /src/qbittorrent-4.6.7.tar.gz
 cd qBittorrent-release-4.6.7
 
-# Apply Android patches
+# Apply Android patches (same as local docker-sources/qbittorrent modifications)
 echo "Applying Android patches..."
-# 1. JNI bridge (new file)
+# 1. JNI bridge (new file for Android in-process loading)
 cp /patches/android_jni_bridge.cpp src/app/
-# 2. Modified src/app/CMakeLists.txt (Android shared lib + skip LinguistTools)
+# 2. Modified src/app/CMakeLists.txt (build as shared lib on Android, skip LinguistTools)
 cp /patches/app_CMakeLists.txt src/app/CMakeLists.txt
-# 3. Modified cmake/Modules/CheckPackages.cmake (skip LinguistTools for Qt5)
+# 3. Modified cmake/Modules/CheckPackages.cmake (make LinguistTools optional for Qt5)
 cp /patches/CheckPackages.cmake cmake/Modules/CheckPackages.cmake
-# 4. Patch resumedatastorage.cpp to replace QThread::create
+# 4. Patch resumedatastorage.cpp to replace QThread::create (not available in Android Qt5)
 python3 /patches/patch_resumedata.py src/base/bittorrent/resumedatastorage.cpp
 
 mkdir build && cd build
@@ -157,28 +147,29 @@ cmake .. \
   -DOPENSSL_CRYPTO_LIBRARY=${PREFIX}/lib/libcrypto.a \
   -DOPENSSL_SSL_LIBRARY=${PREFIX}/lib/libssl.a \
   -DLibtorrentRasterbar_DIR=${PREFIX}/lib/cmake/LibtorrentRasterbar
-
 cmake --build . -j$(nproc)
+cmake --install .
+cd /build && rm -rf qBittorrent-release-4.6.7
 
-# Collect output
+# ===== Collect output (matching Dockerfile) =====
 mkdir -p /output/lib
-cp ${PREFIX}/lib/libtorrent-rasterbar.so /output/lib/ 2>/dev/null || true
+cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null || true
+cp ${PREFIX}/lib/*.so /output/lib/ 2>/dev/null || true
 cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null || true
 
-# Copy qBittorrent .so (name is libqbt_arm64-v8a.so, not libqbittorrent*)
-echo "Looking for libqbt .so in build tree..."
-find /build -name "libqbt*.so" -o -name "libqbt*.so.*" 2>/dev/null | head -5 | while read f; do
+# Also find libqbt .so from build tree (built as shared lib via patched CMakeLists)
+echo "Looking for libqbt .so..."
+find /build -name "libqbt*.so" 2>/dev/null | head -5 | while read f; do
   echo "  Found: $f"
-  cp "$f" /output/lib/libqbt.so
+  cp "$f" /output/lib/
 done
-# Also check install prefix for the .so
-echo "Looking for libqbt .so in install prefix..."
-find ${PREFIX} -name "libqbt*.so" -o -name "libqbt*.so.*" 2>/dev/null | head -5 | while read f; do
-  echo "  Found: $f"
-  cp "$f" /output/lib/libqbt.so
+# Check install prefix
+find ${PREFIX} -name "libqbt*.so" 2>/dev/null | head -5 | while read f; do
+  echo "  Found in prefix: $f"
+  cp "$f" /output/lib/
 done
 
-# Copy Qt5 shared libraries (needed at runtime for Qt5Core/Network/Sql/Xml)
+# Copy Qt5 shared libraries (needed at runtime)
 echo "Copying Qt5 libraries..."
 QT5_LIBS_DIR=${QT5_ANDROID}/lib
 for lib in libQt5Core libQt5Network libQt5Sql libQt5Xml; do
@@ -187,13 +178,10 @@ for lib in libQt5Core libQt5Network libQt5Sql libQt5Xml; do
     cp "$src" /output/lib/
     echo "  Copied: $(basename $src)"
   else
-    # Try without arch suffix
     src="${QT5_LIBS_DIR}/${lib}.so"
     if [ -f "$src" ]; then
       cp "$src" /output/lib/
       echo "  Copied: $(basename $src)"
-    else
-      echo "  WARNING: $lib not found"
     fi
   fi
 done
@@ -207,12 +195,9 @@ elif [ -f "${QT5_PLUGIN_DIR}/libqsqlite.so" ]; then
   echo "  Copied: qsqlite plugin"
 fi
 
-# Strip all .so files in output
-echo "Stripping all .so files in output..."
-for f in /output/lib/*.so; do
-  ${STRIP} "$f" 2>/dev/null || true
-done
-ls -lh /output/lib/
+# Strip (same as Dockerfile: strip binary only, leave .so as-is)
+${STRIP} /output/qbittorrent-nox 2>/dev/null || true
 
-echo "Done: qBittorrent"
+echo "=== Build complete ==="
 ls -lh /output/
+ls -lh /output/lib/
