@@ -162,14 +162,16 @@ cmake --build . -j$(nproc)
 
 # Collect output
 mkdir -p /output/lib
-cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null || true
-cp ${PREFIX}/lib/*.so /output/lib/ 2>/dev/null || true
+cp ${PREFIX}/lib/libtorrent-rasterbar.so /output/lib/ 2>/dev/null || true
 cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null || true
-${STRIP} /output/qbittorrent-nox 2>/dev/null || true
 
-# Also try to find .so files from build dir
-find . -name "*.so" -path "*qbittorrent*" | head -5 | while read f; do
-  cp "$f" /output/lib/
+# Copy qBittorrent .so (name is libqbt_arm64-v8a.so, not libqbittorrent*)
+find . -name "libqbt*.so" -o -name "libqbt*.so.*" | head -5 | while read f; do
+  cp "$f" /output/lib/libqbt.so
+done
+# Also check install prefix for the .so
+find ${PREFIX} -name "libqbt*.so" -o -name "libqbt*.so.*" | head -5 | while read f; do
+  cp "$f" /output/lib/libqbt.so
 done
 
 # Strip all .so files in output
