@@ -52,10 +52,9 @@ jobs:
             "https://www.openssl.org/source/openssl-3.3.2.tar.gz"
           curl -L --retry 3 --connect-timeout 30 -o ci-sources/boost_1_86_0.tar.gz \
             "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz"
-          curl -L --retry 3 --connect-timeout 30 -o ci-sources/libtorrent-2.0.10.tar.gz \
-            "https://github.com/arvidn/libtorrent/releases/download/v2.0.10/libtorrent-rasterbar-2.0.10.tar.gz"
-          curl -L --retry 3 --connect-timeout 30 -o ci-sources/qbittorrent-4.6.7.tar.gz \
-            "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/release-4.6.7.tar.gz"
+          # Use local source archives (same as local Docker build)
+          cp docker-sources/docker-sources-libtorrent.tar.gz ci-sources/
+          cp docker-sources/docker-sources-qbittorrent.tar.gz ci-sources/
           echo "=== Verifying downloads ==="
           ls -lh ci-sources/
           for f in ci-sources/*.tar.*; do
@@ -74,7 +73,6 @@ jobs:
 
           docker run --rm \
             -v ${{ github.workspace }}/ci-sources:/src:ro \
-            -v ${{ github.workspace }}/ci-patches:/patches:ro \
             -v ${{ github.workspace }}/ci/build-native.sh:/build.sh:ro \
             -v ${{ github.workspace }}/output:/output \
             qbt-builder \
