@@ -92,6 +92,7 @@ jobs:
             rm /tmp/ndk.zip
 
             export ANDROID_NDK_HOME=/opt/ndk
+            export ANDROID_NDK_ROOT=/opt/ndk
             export TOOLCHAIN=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64
             export TARGET=aarch64-linux-android35
             export API=35
