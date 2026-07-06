@@ -86,16 +86,16 @@ jobs:
 
             # Install Android NDK
             echo "=== Installing Android NDK ==="
-            curl -fsSL -o /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r27b-linux.zip
+            curl -fsSL -o /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
             unzip -q /tmp/ndk.zip -d /opt/
-            mv /opt/android-ndk-r27b /opt/ndk
+            mv /opt/android-ndk-r25c /opt/ndk
             rm /tmp/ndk.zip
 
             export ANDROID_NDK_HOME=/opt/ndk
             export ANDROID_NDK_ROOT=/opt/ndk
             export TOOLCHAIN=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64
-            export TARGET=aarch64-linux-android35
-            export API=35
+            export TARGET=aarch64-linux-android24
+            export API=24
             export CC=${TOOLCHAIN}/bin/${TARGET}-clang
             export CXX=${TOOLCHAIN}/bin/${TARGET}-clang++
             export AR=${TOOLCHAIN}/bin/llvm-ar
