@@ -105,7 +105,7 @@ echo "Done: libtorrent"
 echo "=== Step 5: Build qBittorrent ==="
 cd /build
 tar xzf /src/qbittorrent-4.6.7.tar.gz
-cd qbittorrent-4.6.7
+cd qBittorrent-release-4.6.7
 
 # Copy patched JNI bridge
 if [ -f /patches/android_jni_bridge.cpp ]; then
