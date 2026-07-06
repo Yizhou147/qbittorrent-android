@@ -101,6 +101,7 @@ jobs:
             export AR=${TOOLCHAIN}/bin/llvm-ar
             export RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
             export STRIP=${TOOLCHAIN}/bin/llvm-strip
+            export PATH=${TOOLCHAIN}/bin:$PATH
 
             # Step 1: Build OpenSSL
             echo "=== Step 1: Build OpenSSL ==="
