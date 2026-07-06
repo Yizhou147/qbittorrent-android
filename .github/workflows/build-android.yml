@@ -131,15 +131,7 @@ jobs:
             # Patch: add JNI_OnLoad to qjnihelpers.cpp
             QJNI_FILE=$(find . -name "qjnihelpers.cpp" | head -1)
             if [ -n "$QJNI_FILE" ]; then
-              cat >> "$QJNI_FILE" << '"'"'PATCH'"'"'
-
-            extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void * /*reserved*/)
-            {
-                extern JavaVM *g_javaVM;
-                g_javaVM = vm;
-                return JNI_VERSION_1_6;
-            }
-            PATCH
+              printf '\nextern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void * /*reserved*/)\n{\n    extern JavaVM *g_javaVM;\n    g_javaVM = vm;\n    return JNI_VERSION_1_6;\n}\n' >> "$QJNI_FILE"
             fi
 
             # Patch: NULL check in qjni.cpp
