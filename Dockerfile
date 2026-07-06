@@ -12,47 +12,44 @@ ENV AR=${TOOLCHAIN}/bin/llvm-ar
 ENV RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
 ENV STRIP=${TOOLCHAIN}/bin/llvm-strip
 
-# ===== 配置 apt 国内镜像源 =====
-RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
-    sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list
+# ===== 配置 apt 镜像源 (回退机制) =====
+RUN (sed -i 's|http://archive.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/sources.list && \
+     sed -i 's|http://security.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/sources.list) || \
+    (sed -i 's|http://mirrors.ustc.edu.cn|http://archive.ubuntu.com|g' /etc/apt/sources.list; true)
 
 # ===== 安装基础工具 =====
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl wget unzip tar p7zip python3 python3-pip \
+    git curl wget unzip tar p7zip-full python3 python3-pip \
     build-essential cmake ninja-build pkg-config \
     clang perl \
     openjdk-17-jdk-headless \
+    qttools5-dev-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # ===== 复制本地源码包 =====
 COPY docker-sources/openssl-3.3.2.tar.gz /tmp/
 COPY docker-sources/boost_1_86_0.tar.gz /tmp/
-COPY docker-sources/android-ndk-r27b-linux.zip /tmp/
-COPY docker-sources/qt-everywhere-src-5.15.2.tar.gz /tmp/
-COPY docker-sources/libtorrent-2.0.11.tar.gz /tmp/
-COPY docker-sources/qbittorrent-4.6.7.tar.gz /tmp/
 COPY docker-sources/libtorrent /build/libtorrent-src
 COPY docker-sources/qbittorrent /build/qbittorrent-src
 
 # ===== 安装 Android SDK =====
-# 安装 SDK platform 34
+# 安装 SDK platform 34 (本地文件)
+COPY docker-sources/platform-34-ext7_r02.zip /tmp/
 RUN mkdir -p ${ANDROID_HOME}/platforms && \
-    cd /tmp && \
-    curl -fsSL -o platform-34.zip "https://mirrors.cloud.tencent.com/AndroidSDK/platform-34-ext7_r02.zip" && \
-    unzip -q platform-34.zip -d ${ANDROID_HOME}/platforms/ && \
-    rm platform-34.zip
+    unzip -q /tmp/platform-34-ext7_r02.zip -d ${ANDROID_HOME}/platforms/ && \
+    rm /tmp/platform-34-ext7_r02.zip
 
-# 安装 build-tools 34.0.0
+# 安装 build-tools 34.0.0 (本地文件)
+COPY docker-sources/build-tools_r34-linux.zip /tmp/
 RUN mkdir -p ${ANDROID_HOME}/build-tools/34.0.0 && \
-    cd /tmp && \
-    curl -fsSL -o build-tools.zip "https://mirrors.cloud.tencent.com/AndroidSDK/build-tools_r34-linux.zip" && \
     mkdir -p /tmp/bt-extract && \
-    unzip -q build-tools.zip -d /tmp/bt-extract && \
+    unzip -q /tmp/build-tools_r34-linux.zip -d /tmp/bt-extract && \
     mv /tmp/bt-extract/*/* ${ANDROID_HOME}/build-tools/34.0.0/ 2>/dev/null; \
     mv /tmp/bt-extract/* ${ANDROID_HOME}/build-tools/34.0.0/ 2>/dev/null; \
-    rm -rf build-tools.zip /tmp/bt-extract
+    rm -rf /tmp/build-tools_r34-linux.zip /tmp/bt-extract
 
-# 安装 NDK 27 (从本地文件)
+# ===== 安装 NDK 27 (本地文件) =====
+COPY docker-sources/android-ndk-r27b-linux.zip /tmp/
 RUN mkdir -p ${ANDROID_HOME}/ndk && \
     unzip -q /tmp/android-ndk-r27b-linux.zip -d /tmp/ndk-extract && \
     mv /tmp/ndk-extract/android-ndk-r27b ${ANDROID_HOME}/ndk/27.0.12077973 && \
@@ -60,9 +57,12 @@ RUN mkdir -p ${ANDROID_HOME}/ndk && \
 
 ENV PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 
-# ===== 使用 aqtinstall 下载预编译 Qt5 for Android =====
-RUN pip3 install --no-cache-dir aqtinstall -i https://pypi.tuna.tsinghua.edu.cn/simple && \
-    aqt install-qt linux android 5.15.2 android -O /opt/qt5-prebuilt && \
+# ===== 安装预编译 Qt5 for Android (本地文件) =====
+COPY docker-sources/qtbase-android.7z /tmp/
+RUN mkdir -p /opt/qt5-prebuilt/5.15.2/android && \
+    cd /opt/qt5-prebuilt/5.15.2/android && \
+    7z x -y /tmp/qtbase-android.7z && \
+    rm -f /tmp/qtbase-android.7z && \
     echo "Qt5 installed at:" && find /opt/qt5-prebuilt -name "Qt5Config.cmake"
 
 # ===== 编译 OpenSSL =====
@@ -124,10 +124,86 @@ RUN cd /build/libtorrent-src && mkdir build && cd build && \
     cmake --build . -j$(nproc) && cmake --install .
 
 # ===== 编译 qBittorrent =====
-# Qt5 预编译路径: /opt/qt5-prebuilt/5.15.2/android/
-ENV QT5_ANDROID=/opt/qt5-prebuilt/5.15.2/android
+# Qt5 预编译路径 (7z解压后有嵌套目录)
+ENV QT5_ANDROID=/opt/qt5-prebuilt/5.15.2/android/5.15.2/android
 
-RUN cd /build/qbittorrent-src && mkdir build && cd build && \
+# 补丁: 让 CMakeLists.txt 支持预编译翻译文件 (无 LinguistTools 时)
+RUN python3 -c "
+import re
+f = '/build/qbittorrent-src/src/app/CMakeLists.txt'
+t = open(f).read()
+# Patch: add elseif branch for pre-compiled translations
+old1 = '''if (QBT_QM_FILES)
+    target_sources(qbt_app PRIVATE
+        \${QBT_QM_FILES}
+        \"\${qBittorrent_BINARY_DIR}/src/lang/lang.qrc\"
+    )
+endif()'''
+new1 = '''if (QBT_QM_FILES)
+    target_sources(qbt_app PRIVATE
+        \${QBT_QM_FILES}
+        \"\${qBittorrent_BINARY_DIR}/src/lang/lang.qrc\"
+    )
+elseif (EXISTS \"\${qBittorrent_BINARY_DIR}/src/lang/lang.qrc\")
+    file(GLOB _PRECOMPILED_QM \"\${qBittorrent_BINARY_DIR}/src/lang/*.qm\")
+    target_sources(qbt_app PRIVATE
+        \${_PRECOMPILED_QM}
+        \"\${qBittorrent_BINARY_DIR}/src/lang/lang.qrc\"
+    )
+endif()'''
+old2 = '''if (QBT_WEBUI_QM_FILES)
+        target_sources(qbt_app PRIVATE
+            \${QBT_WEBUI_QM_FILES}
+            \${qBittorrent_BINARY_DIR}/src/webui/www/translations/webui_translations.qrc
+        )
+    endif()'''
+new2 = '''if (QBT_WEBUI_QM_FILES)
+        target_sources(qbt_app PRIVATE
+            \${QBT_WEBUI_QM_FILES}
+            \${qBittorrent_BINARY_DIR}/src/webui/www/translations/webui_translations.qrc
+        )
+    elseif (EXISTS \"\${qBittorrent_BINARY_DIR}/src/webui/www/translations/webui_translations.qrc\")
+        file(GLOB _PRECOMPILED_WEBUI_QM \"\${qBittorrent_BINARY_DIR}/src/webui/www/translations/*.qm\")
+        target_sources(qbt_app PRIVATE
+            \${_PRECOMPILED_WEBUI_QM}
+            \${qBittorrent_BINARY_DIR}/src/webui/www/translations/webui_translations.qrc
+        )
+    endif()'''
+t = t.replace(old1, new1).replace(old2, new2)
+open(f, 'w').write(t)
+print('CMakeLists.txt patched')
+"
+
+# 预编译翻译文件 (在 cmake configure 之前，以便 cmake 能找到 .qrc)
+RUN SRC=/build/qbittorrent-src && \
+    BUILD=/build/qbittorrent-src/build && \
+    mkdir -p ${BUILD}/src/lang ${BUILD}/src/webui/www/translations && \
+    echo "=== Compiling app translations ===" && \
+    for ts in ${SRC}/src/lang/*.ts; do \
+        base=$(basename "$ts" .ts) && \
+        lrelease "$ts" -qm "${BUILD}/src/lang/${base}.qm" 2>/dev/null; \
+    done && \
+    echo "=== Compiling WebUI translations ===" && \
+    for ts in ${SRC}/src/webui/www/translations/*.ts; do \
+        base=$(basename "$ts" .ts) && \
+        lrelease "$ts" -qm "${BUILD}/src/webui/www/translations/${base}.qm" 2>/dev/null; \
+    done && \
+    echo "=== Generating QRC files ===" && \
+    echo '<RCC><qresource prefix="/lang">' > ${BUILD}/src/lang/lang.qrc && \
+    for qm in ${BUILD}/src/lang/*.qm; do \
+        echo "    <file>$(basename $qm)</file>" >> ${BUILD}/src/lang/lang.qrc; \
+    done && \
+    echo '</qresource></RCC>' >> ${BUILD}/src/lang/lang.qrc && \
+    echo '<RCC><qresource prefix="/www/translations">' > ${BUILD}/src/webui/www/translations/webui_translations.qrc && \
+    for qm in ${BUILD}/src/webui/www/translations/*.qm; do \
+        echo "    <file>$(basename $qm)</file>" >> ${BUILD}/src/webui/www/translations/webui_translations.qrc; \
+    done && \
+    echo '</qresource></RCC>' >> ${BUILD}/src/webui/www/translations/webui_translations.qrc && \
+    echo "=== Translation files ready ===" && \
+    ls ${BUILD}/src/lang/*.qm | wc -l && echo " app .qm files" && \
+    ls ${BUILD}/src/webui/www/translations/*.qm | wc -l && echo " webui .qm files"
+
+RUN cd /build/qbittorrent-src && mkdir -p build && cd build && \
     cmake .. \
         -G Ninja \
         -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
