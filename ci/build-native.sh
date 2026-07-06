@@ -184,15 +184,9 @@ elif [ -f "${QT5_PLUGIN_DIR}/libqsqlite.so" ]; then
   echo "  Copied: qsqlite plugin"
 fi
 
-# Strip binary and all .so files to reduce size
-echo "Stripping binaries..."
+# Strip (matching Dockerfile: strip binary only, leave .so as-is)
+echo "Stripping binary..."
 ${STRIP} /output/qbittorrent-nox 2>/dev/null || true
-for so in /output/lib/*.so; do
-  if [ -f "$so" ]; then
-    ${STRIP} "$so" 2>/dev/null || true
-    echo "  Stripped: $(basename $so)"
-  fi
-done
 
 echo "=== Build complete ==="
 ls -lh /output/
