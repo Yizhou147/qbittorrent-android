@@ -69,16 +69,12 @@ jobs:
 
       - name: Build native libraries in Docker
         run: |
-          mkdir -p output ci-patches
-          cp docker-sources/qbittorrent/src/app/android_jni_bridge.cpp ci-patches/ 2>/dev/null || true
-          cp docker-sources/qbittorrent/src/app/CMakeLists.txt ci-patches/ 2>/dev/null || true
-          cp docker-sources/qbittorrent/cmake/Modules/CheckPackages.cmake ci-patches/ 2>/dev/null || true
+          mkdir -p output
           chmod +x ci/build-native.sh
 
           docker run --rm \
             -v ${{ github.workspace }}/ci-sources:/src:ro \
             -v ${{ github.workspace }}/ci-patches:/patches:ro \
-            -v ${{ github.workspace }}/docker-sources/qbittorrent:/qbt-src:ro \
             -v ${{ github.workspace }}/ci/build-native.sh:/build.sh:ro \
             -v ${{ github.workspace }}/output:/output \
             qbt-builder \
