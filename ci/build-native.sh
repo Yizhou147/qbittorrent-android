@@ -166,13 +166,46 @@ cp ${PREFIX}/lib/libtorrent-rasterbar.so /output/lib/ 2>/dev/null || true
 cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null || true
 
 # Copy qBittorrent .so (name is libqbt_arm64-v8a.so, not libqbittorrent*)
-find . -name "libqbt*.so" -o -name "libqbt*.so.*" | head -5 | while read f; do
+echo "Looking for libqbt .so in build tree..."
+find /build -name "libqbt*.so" -o -name "libqbt*.so.*" 2>/dev/null | head -5 | while read f; do
+  echo "  Found: $f"
   cp "$f" /output/lib/libqbt.so
 done
 # Also check install prefix for the .so
-find ${PREFIX} -name "libqbt*.so" -o -name "libqbt*.so.*" | head -5 | while read f; do
+echo "Looking for libqbt .so in install prefix..."
+find ${PREFIX} -name "libqbt*.so" -o -name "libqbt*.so.*" 2>/dev/null | head -5 | while read f; do
+  echo "  Found: $f"
   cp "$f" /output/lib/libqbt.so
 done
+
+# Copy Qt5 shared libraries (needed at runtime for Qt5Core/Network/Sql/Xml)
+echo "Copying Qt5 libraries..."
+QT5_LIBS_DIR=${QT5_ANDROID}/lib
+for lib in libQt5Core libQt5Network libQt5Sql libQt5Xml; do
+  src="${QT5_LIBS_DIR}/${lib}_arm64-v8a.so"
+  if [ -f "$src" ]; then
+    cp "$src" /output/lib/
+    echo "  Copied: $(basename $src)"
+  else
+    # Try without arch suffix
+    src="${QT5_LIBS_DIR}/${lib}.so"
+    if [ -f "$src" ]; then
+      cp "$src" /output/lib/
+      echo "  Copied: $(basename $src)"
+    else
+      echo "  WARNING: $lib not found"
+    fi
+  fi
+done
+# Copy Qt5 SQL plugin
+QT5_PLUGIN_DIR=${QT5_ANDROID}/plugins/sqldrivers
+if [ -f "${QT5_PLUGIN_DIR}/libqsqlite_arm64-v8a.so" ]; then
+  cp "${QT5_PLUGIN_DIR}/libqsqlite_arm64-v8a.so" /output/lib/libplugins_sqldrivers_qsqlite_arm64-v8a.so
+  echo "  Copied: qsqlite plugin"
+elif [ -f "${QT5_PLUGIN_DIR}/libqsqlite.so" ]; then
+  cp "${QT5_PLUGIN_DIR}/libqsqlite.so" /output/lib/libplugins_sqldrivers_qsqlite_arm64-v8a.so
+  echo "  Copied: qsqlite plugin"
+fi
 
 # Strip all .so files in output
 echo "Stripping all .so files in output..."
