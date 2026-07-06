@@ -99,6 +99,16 @@ cmake .. \
 cmake --build . -j$(nproc)
 cmake --install .
 cd /build && rm -rf libtorrent-rasterbar-2.0.11
+
+# Strip libtorrent shared library (remove debug symbols, ~124MB -> ~10MB)
+echo "Stripping libtorrent-rasterbar.so..."
+${STRIP} ${PREFIX}/lib/libtorrent-rasterbar.so
+ls -lh ${PREFIX}/lib/libtorrent-rasterbar.so
+
+# Verify required symbols are exported
+echo "Verifying libtorrent symbols..."
+${TOOLCHAIN}/bin/llvm-nm -D ${PREFIX}/lib/libtorrent-rasterbar.so | grep -c "add_torrent_params" && echo "OK: add_torrent_params symbols found" || echo "WARNING: add_torrent_params symbols NOT found"
+
 echo "Done: libtorrent"
 
 # Step 5: Build qBittorrent
@@ -162,6 +172,12 @@ find . -name "*.so" -path "*qbittorrent*" | head -5 | while read f; do
   cp "$f" /output/lib/
 done
 
+# Strip all .so files in output
+echo "Stripping all .so files in output..."
+for f in /output/lib/*.so; do
+  ${STRIP} "$f" 2>/dev/null || true
+done
+ls -lh /output/lib/
+
 echo "Done: qBittorrent"
 ls -lh /output/
-ls -lh /output/lib/ 2>/dev/null || true
