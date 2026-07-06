@@ -104,19 +104,19 @@ echo "Done: libtorrent"
 # Step 5: Build qBittorrent
 echo "=== Step 5: Build qBittorrent ==="
 cd /build
-cp -r /qbt-src qbittorrent-src
-cd qbittorrent-src
+tar xzf /src/qbittorrent-4.6.7.tar.gz
+cd qBittorrent-release-4.6.7
 
-# Copy patched JNI bridge
-if [ -f /patches/android_jni_bridge.cpp ]; then
-  cp /patches/android_jni_bridge.cpp src/app/
-fi
-if [ -f /patches/CMakeLists.txt ]; then
-  cp /patches/CMakeLists.txt src/app/
-fi
-if [ -f /patches/CheckPackages.cmake ]; then
-  cp /patches/CheckPackages.cmake cmake/Modules/
-fi
+# Apply Android patches
+echo "Applying Android patches..."
+# 1. JNI bridge (new file)
+cp /patches/android_jni_bridge.cpp src/app/
+# 2. Modified src/app/CMakeLists.txt (Android shared lib + skip LinguistTools)
+cp /patches/app_CMakeLists.txt src/app/CMakeLists.txt
+# 3. Modified cmake/Modules/CheckPackages.cmake (skip LinguistTools for Qt5)
+cp /patches/CheckPackages.cmake cmake/Modules/CheckPackages.cmake
+# 4. Patch resumedatastorage.cpp to replace QThread::create
+python3 /patches/patch_resumedata.py src/base/bittorrent/resumedatastorage.cpp
 
 mkdir build && cd build
 cmake .. \
