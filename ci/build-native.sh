@@ -1,108 +1,68 @@
 #!/bin/bash
 set -ex
 
-# Install Android NDK r25c
+PREFIX=/opt/qbt-output
+QT5_ANDROID=/opt/qt5-android/5.15.2/android
+
+# Install Android NDK r27b
 echo "=== Installing Android NDK ==="
-curl -fsSL -o /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
+curl -fsSL -o /tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r27b-linux.zip
 unzip -q /tmp/ndk.zip -d /opt/
-mv /opt/android-ndk-r25c /opt/ndk
+mv /opt/android-ndk-r27b /opt/ndk
 rm /tmp/ndk.zip
 
+export ANDROID_NDK=/opt/ndk
 export ANDROID_NDK_HOME=/opt/ndk
 export ANDROID_NDK_ROOT=/opt/ndk
-export TOOLCHAIN=${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64
-export TARGET=aarch64-linux-android24
-export API=24
-export CC=${TOOLCHAIN}/bin/${TARGET}-clang
-export CXX=${TOOLCHAIN}/bin/${TARGET}-clang++
+export TOOLCHAIN=${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64
+export CC=${TOOLCHAIN}/bin/aarch64-linux-android24-clang
+export CXX=${TOOLCHAIN}/bin/aarch64-linux-android24-clang++
 export AR=${TOOLCHAIN}/bin/llvm-ar
 export RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
 export STRIP=${TOOLCHAIN}/bin/llvm-strip
 export PATH=${TOOLCHAIN}/bin:$PATH
 
-# Step 1: Build OpenSSL
-echo "=== Step 1: Build OpenSSL ==="
+# Step 1: Install pre-built Qt5 via aqtinstall
+echo "=== Step 1: Install pre-built Qt5 ==="
+pip3 install --no-cache-dir aqtinstall -i https://pypi.tuna.tsinghua.edu.cn/simple
+aqt install-qt linux android 5.15.2 android -O /opt/qt5-android
+echo "Qt5 installed at:"
+find /opt/qt5-android -name "Qt5Config.cmake" | head -5
+echo "Done: Qt5"
+
+# Step 2: Build OpenSSL
+echo "=== Step 2: Build OpenSSL ==="
 cd /build
 tar xzf /src/openssl-3.3.2.tar.gz
 cd openssl-3.3.2
-./Configure android-arm64 no-shared no-tests \
-  --prefix=/opt/openssl \
-  -D__ANDROID_API__=${API}
+./Configure android-arm64 -D__ANDROID_API__=24 \
+  --prefix=${PREFIX} --openssldir=${PREFIX}/ssl \
+  no-shared no-tests no-ui-console -fPIC
 make -j$(nproc) build_libs
-make install_dev
+make install_sw
 cd /build && rm -rf openssl-3.3.2
 echo "Done: OpenSSL"
-
-# Step 2: Build Qt5
-echo "=== Step 2: Build Qt5 ==="
-cd /build
-tar xf /src/qt-everywhere-src-5.15.2.tar.xz
-cd qt-everywhere-src-5.15.2
-
-# Patch: disable JNI_OnLoad in androidjnimain.cpp
-JNI_FILE=$(find . -name "androidjnimain.cpp" | head -1)
-if [ -n "$JNI_FILE" ]; then
-  sed -i "s/JNI_OnLoad/JNI_OnLoad_Disabled/g" "$JNI_FILE"
-fi
-
-# Patch: add JNI_OnLoad to qjnihelpers.cpp
-QJNI_FILE=$(find . -name "qjnihelpers.cpp" | head -1)
-if [ -n "$QJNI_FILE" ]; then
-  printf "\nextern \"C\" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void * /*reserved*/)\n{\n    extern JavaVM *g_javaVM;\n    g_javaVM = vm;\n    return JNI_VERSION_1_6;\n}\n" >> "$QJNI_FILE"
-fi
-
-# Patch: NULL check in qjni.cpp
-QJNI2_FILE=$(find . -name "qjni.cpp" | head -1)
-if [ -n "$QJNI2_FILE" ]; then
-  sed -i "s/vm->GetEnv(\&env, JNI_VERSION_1_6)/vm ? vm->GetEnv(\&env, JNI_VERSION_1_6) : -1/g" "$QJNI2_FILE"
-fi
-
-mkdir -p /build/qt5-build && cd /build/qt5-build
-
-../qt-everywhere-src-5.15.2/configure \
-  -prefix /opt/qt5 \
-  -platform linux-g++ \
-  -xplatform android-clang \
-  -android-ndk ${ANDROID_NDK_HOME} \
-  -android-ndk-host linux-x86_64 \
-  -android-arch arm64-v8a \
-  -android-abis arm64-v8a \
-  -no-gui -no-widgets \
-  -no-opengl -no-vulkan \
-  -openssl-linked -I/opt/openssl/include -L/opt/openssl/lib \
-  -skip qtx11extras -skip qtmacextras -skip qtwinextras \
-  -skip qtdeclarative -skip qtquickcontrols -skip qtquickcontrols2 \
-  -skip qtmultimedia -skip qtwebengine -skip qtwebview \
-  -skip qt3d -skip qtcanvas3d -skip qtcharts -skip qtdatavis3d \
-  -skip qtgamepad -skip qtnetworkauth -skip qtpurchasing \
-  -skip qtremoteobjects -skip qtscxml -skip qtsensors \
-  -skip qtserialbus -skip qtserialport -skip qtspeech \
-  -skip qtvirtualkeyboard -skip qtwebchannel -skip qtwebsockets \
-  -skip qtsvg -skip qtgraphicaleffects -skip qtimageformats \
-  -skip qtlottie -skip qtdoc \
-  -nomake tests -nomake examples \
-  -confirm-license \
-  -opensource
-
-make -j$(nproc)
-make install
-cd /build && rm -rf qt5-build qt-everywhere-src-5.15.2
-echo "Done: Qt5"
 
 # Step 3: Build Boost
 echo "=== Step 3: Build Boost ==="
 cd /build
 tar xzf /src/boost_1_86_0.tar.gz
 cd boost_1_86_0
-echo "using clang : : ${CXX} : <archiver>${AR} <ranlib>${RANLIB} ;" > user-config.jam
-./bootstrap.sh --prefix=/opt/boost
-./b2 install --user-config=user-config.jam \
-  toolset=clang \
-  link=shared \
-  threading=multi \
-  variant=release \
-  --with-system \
-  -j$(nproc)
+./bootstrap.sh --with-toolset=clang
+echo "using clang : android : ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ : <archiver>${TOOLCHAIN}/bin/llvm-ar <ranlib>${TOOLCHAIN}/bin/llvm-ranlib <linkflags>-llog <compileflags>--target=aarch64-linux-android24 <compileflags>-fPIC ;" > user-config.jam
+./b2 install \
+  --prefix=${PREFIX} \
+  --with-system --with-filesystem --with-thread \
+  --with-date_time --with-chrono --with-random \
+  --with-program_options \
+  --user-config=user-config.jam \
+  toolset=clang-android \
+  link=static threading=multi variant=release \
+  runtime-link=static target-os=android \
+  architecture=arm address-model=64 \
+  cxxflags="-std=c++17 --target=aarch64-linux-android24" \
+  linkflags="--target=aarch64-linux-android24 -llog" \
+  -j$(nproc) --abbreviate-paths -d1
 cd /build && rm -rf boost_1_86_0
 echo "Done: Boost"
 
@@ -113,21 +73,31 @@ tar xzf /src/libtorrent-2.0.11.tar.gz
 cd libtorrent-rasterbar-2.0.11
 mkdir build && cd build
 cmake .. \
-  -DCMAKE_SYSTEM_NAME=Android \
-  -DCMAKE_SYSTEM_VERSION=${API} \
-  -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
-  -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} \
-  -DCMAKE_C_COMPILER=${CC} \
-  -DCMAKE_CXX_COMPILER=${CXX} \
-  -DCMAKE_CXX_STANDARD=17 \
-  -DCMAKE_INSTALL_PREFIX=/opt/libtorrent \
+  -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
+  -DANDROID_ABI=arm64-v8a \
+  -DANDROID_PLATFORM=android-24 \
+  -DANDROID_STL=c++_shared \
+  -DCMAKE_INSTALL_PREFIX=${PREFIX} \
   -DCMAKE_BUILD_TYPE=Release \
-  -DBoost_INCLUDE_DIR=/opt/boost/include \
-  -DBoost_SYSTEM_LIBRARY=/opt/boost/lib/libboost_system.so \
-  -Dshared=ON \
-  -Dstatic=OFF
-make -j$(nproc)
-make install
+  -DCMAKE_CXX_STANDARD=17 \
+  -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+  -DBoost_INCLUDE_DIR=${PREFIX}/include \
+  -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
+  -DBoost_FILESYSTEM_LIBRARY=${PREFIX}/lib/libboost_filesystem.a \
+  -DBoost_THREAD_LIBRARY=${PREFIX}/lib/libboost_thread.a \
+  -DBoost_DATE_TIME_LIBRARY=${PREFIX}/lib/libboost_date_time.a \
+  -DBoost_CHRONO_LIBRARY=${PREFIX}/lib/libboost_chrono.a \
+  -DBoost_RANDOM_LIBRARY=${PREFIX}/lib/libboost_random.a \
+  -DBoost_PROGRAM_OPTIONS_LIBRARY=${PREFIX}/lib/libboost_program_options.a \
+  -DOPENSSL_ROOT_DIR=${PREFIX} \
+  -DOPENSSL_INCLUDE_DIR=${PREFIX}/include \
+  -DOPENSSL_CRYPTO_LIBRARY=${PREFIX}/lib/libcrypto.a \
+  -DOPENSSL_SSL_LIBRARY=${PREFIX}/lib/libssl.a \
+  -Dstatic_runtime=ON \
+  -Dencryption=ON
+cmake --build . -j$(nproc)
+cmake --install .
 cd /build && rm -rf libtorrent-rasterbar-2.0.11
 echo "Done: libtorrent"
 
@@ -149,30 +119,49 @@ if [ -f /patches/CheckPackages.cmake ]; then
 fi
 
 mkdir build && cd build
-export CMAKE_PREFIX_PATH="/opt/qt5;/opt/libtorrent;/opt/boost;/opt/openssl"
-export LD_LIBRARY_PATH="/opt/qt5/lib:/opt/libtorrent/lib:/opt/boost/lib:/opt/openssl/lib"
-
 cmake .. \
-  -DCMAKE_SYSTEM_NAME=Android \
-  -DCMAKE_SYSTEM_VERSION=${API} \
-  -DCMAKE_ANDROID_ARCH_ABI=arm64-v8a \
-  -DCMAKE_ANDROID_NDK=${ANDROID_NDK_HOME} \
-  -DCMAKE_C_COMPILER=${CC} \
-  -DCMAKE_CXX_COMPILER=${CXX} \
-  -DCMAKE_CXX_STANDARD=17 \
-  -DCMAKE_INSTALL_PREFIX=/usr/local \
+  -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
+  -DANDROID_ABI=arm64-v8a \
+  -DANDROID_PLATFORM=android-24 \
+  -DANDROID_STL=c++_shared \
+  -DCMAKE_INSTALL_PREFIX=${PREFIX} \
   -DCMAKE_BUILD_TYPE=Release \
-  -DQT6=OFF \
+  -DCMAKE_CXX_STANDARD=17 \
+  -DCMAKE_FIND_ROOT_PATH="${PREFIX};${QT5_ANDROID}" \
+  -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
+  -DQt5_DIR=${QT5_ANDROID}/lib/cmake/Qt5 \
+  -DGUI=OFF \
   -DWEBUI=ON \
-  -DSTACKTRACE=OFF \
-  -DTESTING=OFF
+  -DTESTING=OFF \
+  -DBoost_INCLUDE_DIR=${PREFIX}/include \
+  -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
+  -DBoost_FILESYSTEM_LIBRARY=${PREFIX}/lib/libboost_filesystem.a \
+  -DBoost_THREAD_LIBRARY=${PREFIX}/lib/libboost_thread.a \
+  -DBoost_DATE_TIME_LIBRARY=${PREFIX}/lib/libboost_date_time.a \
+  -DBoost_CHRONO_LIBRARY=${PREFIX}/lib/libboost_chrono.a \
+  -DBoost_RANDOM_LIBRARY=${PREFIX}/lib/libboost_random.a \
+  -DBoost_PROGRAM_OPTIONS_LIBRARY=${PREFIX}/lib/libboost_program_options.a \
+  -DOPENSSL_ROOT_DIR=${PREFIX} \
+  -DOPENSSL_INCLUDE_DIR=${PREFIX}/include \
+  -DOPENSSL_CRYPTO_LIBRARY=${PREFIX}/lib/libcrypto.a \
+  -DOPENSSL_SSL_LIBRARY=${PREFIX}/lib/libssl.a \
+  -DLibtorrentRasterbar_DIR=${PREFIX}/lib/cmake/LibtorrentRasterbar
 
-make -j$(nproc)
+cmake --build . -j$(nproc)
 
 # Collect output
-QBT_LIB=$(find . -name "libqbt*.so" -not -path "*_autogen*" | head -1)
-cp "$QBT_LIB" /output/libqbt.so
-${STRIP} /output/libqbt.so
+mkdir -p /output/lib
+cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null || true
+cp ${PREFIX}/lib/*.so /output/lib/ 2>/dev/null || true
+cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null || true
+${STRIP} /output/qbittorrent-nox 2>/dev/null || true
+
+# Also try to find .so files from build dir
+find . -name "*.so" -path "*qbittorrent*" | head -5 | while read f; do
+  cp "$f" /output/lib/
+done
 
 echo "Done: qBittorrent"
-ls -lh /output/libqbt.so
+ls -lh /output/
+ls -lh /output/lib/ 2>/dev/null || true
