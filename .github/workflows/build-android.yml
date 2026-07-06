@@ -7,8 +7,8 @@ on:
       - 'v*'
 
 jobs:
-  build-native:
-    name: Build Native Libraries
+  build:
+    name: Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 360
 
@@ -27,96 +27,121 @@ jobs:
             echo "version=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build Docker base image
+      - name: Download build dependencies
         run: |
-          cat > Dockerfile.ci <<'EOF'
-          FROM ubuntu:22.04
-          ENV DEBIAN_FRONTEND=noninteractive
-          RUN sed -i 's|http://archive.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
-              sed -i 's|http://security.ubuntu.com|http://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list && \
-              apt-get update && apt-get install -y --no-install-recommends \
-              build-essential cmake ninja-build pkg-config clang perl \
-              curl wget unzip tar xz-utils python3 python3-pip \
-              openjdk-17-jdk-headless ca-certificates && \
-              rm -rf /var/lib/apt/lists/*
-          RUN mkdir -p /build /src /output
-          WORKDIR /build
-          EOF
-          sed -i 's/^          //' Dockerfile.ci
-          docker build -t qbt-builder -f Dockerfile.ci .
-
-      - name: Download source packages
-        run: |
-          mkdir -p ci-sources
-          curl -L --retry 3 --connect-timeout 30 -o ci-sources/openssl-3.3.2.tar.gz \
+          mkdir -p docker-sources
+          
+          # Download Android SDK Platform 34
+          echo "Downloading SDK Platform 34..."
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/platform-34-ext7_r02.zip \
+            "https://dl.google.com/android/repository/platform-34-ext7_r02.zip"
+          
+          # Download Android Build Tools 34.0.0
+          echo "Downloading Build Tools 34.0.0..."
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/build-tools_r34-linux.zip \
+            "https://dl.google.com/android/repository/build-tools_r34-linux.zip"
+          
+          # Download Android NDK r27b
+          echo "Downloading NDK r27b..."
+          curl -L --retry 3 --connect-timeout 120 -o docker-sources/android-ndk-r27b-linux.zip \
+            "https://dl.google.com/android/repository/android-ndk-r27b-linux.zip"
+          
+          # Download Qt5 qtbase for Android
+          echo "Downloading Qt5 qtbase..."
+          curl -L --retry 3 --connect-timeout 120 -o docker-sources/qtbase-android.7z \
+            "https://ftp.fau.de/qtproject/online/qtsdkrepository/linux_x64/android/qt5_5152/qt.qt5.5152.android/5.15.2-0-202011130628qtbase-Linux-RHEL_7_6-Clang-Android-Android_ANY-Multi.7z" || \
+          curl -L --retry 3 --connect-timeout 120 -o docker-sources/qtbase-android.7z \
+            "https://download.qt.io/online/qtsdkrepository/linux_x64/android/qt5_5152/qt.qt5.5152.android/5.15.2-0-202011130628qtbase-Linux-RHEL_7_6-Clang-Android-Android_ANY-Multi.7z"
+          
+          # Download OpenSSL
+          echo "Downloading OpenSSL..."
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/openssl-3.3.2.tar.gz \
             "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz" || \
-          curl -L --retry 3 --connect-timeout 30 -o ci-sources/openssl-3.3.2.tar.gz \
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/openssl-3.3.2.tar.gz \
             "https://www.openssl.org/source/openssl-3.3.2.tar.gz"
-          curl -L --retry 3 --connect-timeout 30 -o ci-sources/boost_1_86_0.tar.gz \
+          
+          # Download Boost
+          echo "Downloading Boost..."
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/boost_1_86_0.tar.gz \
             "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz"
-          # Use local source archives (same as local Docker build)
-          cp docker-sources/docker-sources-libtorrent.tar.gz ci-sources/
-          cp docker-sources/docker-sources-qbittorrent.tar.gz ci-sources/
+          
           echo "=== Verifying downloads ==="
-          ls -lh ci-sources/
-          for f in ci-sources/*.tar.*; do
-            size=$(stat -c%s "$f")
-            echo "$f: $size bytes"
-            if [ "$size" -lt 100000 ]; then
-              echo "ERROR: $f is too small, download likely failed"
-              exit 1
+          ls -lh docker-sources/
+          for f in docker-sources/*.zip docker-sources/*.tar.gz docker-sources/*.7z; do
+            if [ -f "$f" ]; then
+              size=$(stat -c%s "$f")
+              echo "$f: $size bytes"
+              if [ "$size" -lt 100000 ]; then
+                echo "ERROR: $f is too small, download likely failed"
+                exit 1
+              fi
             fi
           done
 
-      - name: Build native libraries in Docker
+      - name: Prepare source directories
         run: |
-          mkdir -p output
-          chmod +x ci/build-native.sh
-
-          docker run --rm \
-            -v ${{ github.workspace }}/ci-sources:/src:ro \
-            -v ${{ github.workspace }}/ci/build-native.sh:/build.sh:ro \
-            -v ${{ github.workspace }}/output:/output \
-            qbt-builder \
-            bash /build.sh
-
-          echo "Native libraries built successfully"
-          ls -lh output/
-
-      - name: Upload native libraries
-        uses: actions/upload-artifact@v4
-        with:
-          name: native-libs
-          path: output/
-          retention-days: 7
-
-  build-apk:
-    name: Build Android APK
-    runs-on: ubuntu-latest
-    needs: build-native
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download native libraries
-        uses: actions/download-artifact@v4
-        with:
-          name: native-libs
-          path: apk-project/app/src/main/jniLibs/arm64-v8a/
-
-      - name: Organize native libraries
-        run: |
-          cd apk-project/app/src/main/jniLibs/arm64-v8a
-          # Move .so files from lib/ subdirectory to current directory
-          if [ -d lib ]; then
-            mv lib/*.so . 2>/dev/null || true
-            rmdir lib 2>/dev/null || true
+          # Create libtorrent source directory from archive
+          if [ -f docker-sources/docker-sources-libtorrent.tar.gz ]; then
+            mkdir -p docker-sources/libtorrent
+            tar xzf docker-sources/docker-sources-libtorrent.tar.gz -C docker-sources/libtorrent --strip-components=1
           fi
-          # Remove non-library files
-          rm -f qbittorrent-nox 2>/dev/null || true
-          ls -la
+          
+          # Create qbittorrent source directory from archive
+          if [ -f docker-sources/docker-sources-qbittorrent.tar.gz ]; then
+            mkdir -p docker-sources/qbittorrent
+            tar xzf docker-sources/docker-sources-qbittorrent.tar.gz -C docker-sources/qbittorrent --strip-components=1
+          fi
+          
+          echo "=== Source directories ==="
+          ls -la docker-sources/
+
+      - name: Build Docker image
+        run: |
+          docker build -t qbittorrent-android .
+
+      - name: Extract build artifacts
+        run: |
+          mkdir -p build-output
+          docker create --name qb-out qbittorrent-android
+          docker cp qb-out:/opt/qbt-output/lib/. ./build-output/
+          docker cp qb-out:/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so ./build-output/
+          docker rm qb-out
+          
+          echo "=== Build output ==="
+          ls -lh build-output/
+
+      - name: Strip native libraries
+        run: |
+          docker run --rm -v ${{ github.workspace }}/build-output:/out qbittorrent-android \
+            /bin/sh -c "/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip /out/libqbt_arm64-v8a.so 2>/dev/null || true; \
+                        /opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip /out/libtorrent-rasterbar.so 2>/dev/null || true"
+          
+          echo "=== Stripped libraries ==="
+          ls -lh build-output/*.so
+
+      - name: Prepare jniLibs
+        run: |
+          mkdir -p apk-project/app/src/main/jniLibs/arm64-v8a
+          cp build-output/libqbt_arm64-v8a.so apk-project/app/src/main/jniLibs/arm64-v8a/libqbt.so
+          cp build-output/libtorrent-rasterbar.so apk-project/app/src/main/jniLibs/arm64-v8a/
+          cp build-output/libc++_shared.so apk-project/app/src/main/jniLibs/arm64-v8a/
+          
+          # Copy Qt5 libraries if they exist in build-output
+          for lib in libQt5Core_arm64-v8a.so libQt5Network_arm64-v8a.so libQt5Sql_arm64-v8a.so libQt5Xml_arm64-v8a.so libplugins_sqldrivers_qsqlite_arm64-v8a.so; do
+            if [ -f "build-output/$lib" ]; then
+              cp "build-output/$lib" apk-project/app/src/main/jniLibs/arm64-v8a/
+            fi
+          done
+          
+          # Copy OpenSSL libraries if they exist
+          for lib in libssl.so libcrypto.so; do
+            if [ -f "build-output/$lib" ]; then
+              cp "build-output/$lib" apk-project/app/src/main/jniLibs/arm64-v8a/
+            fi
+          done
+          
+          echo "=== jniLibs contents ==="
+          ls -lh apk-project/app/src/main/jniLibs/arm64-v8a/
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -131,20 +156,25 @@ jobs:
         run: |
           cd apk-project
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
+
+      - name: Rename APK
+        run: |
+          mv apk-project/app/build/outputs/apk/release/app-release-unsigned.apk \
+             qbittorrent-android-${{ steps.version.outputs.version }}.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: apk
-          path: apk-project/app/build/outputs/apk/debug/app-debug.apk
+          name: qbittorrent-android-${{ steps.version.outputs.version }}
+          path: qbittorrent-android-${{ steps.version.outputs.version }}.apk
           retention-days: 90
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: apk-project/app/build/outputs/apk/debug/app-debug.apk
+          files: qbittorrent-android-${{ steps.version.outputs.version }}.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
