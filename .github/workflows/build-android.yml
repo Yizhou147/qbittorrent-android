@@ -78,6 +78,7 @@ jobs:
           docker run --rm \
             -v ${{ github.workspace }}/ci-sources:/src:ro \
             -v ${{ github.workspace }}/ci-patches:/patches:ro \
+            -v ${{ github.workspace }}/docker-sources/qbittorrent:/qbt-src:ro \
             -v ${{ github.workspace }}/ci/build-native.sh:/build.sh:ro \
             -v ${{ github.workspace }}/output:/output \
             qbt-builder \
