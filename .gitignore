@@ -4,9 +4,10 @@
 # Docker output
 output/
 
-# Source code (downloaded during Docker build), but keep tar.gz archives
+# Source code (downloaded during Docker build), but keep tar.gz archives and scripts
 docker-sources/*
 !docker-sources/*.tar.gz
+!docker-sources/*.py
 
 # Temporary files
 *.tmp

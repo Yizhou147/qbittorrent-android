@@ -128,51 +128,8 @@ RUN cd /build/libtorrent-src && mkdir build && cd build && \
 ENV QT5_ANDROID=/opt/qt5-prebuilt/5.15.2/android/5.15.2/android
 
 # 补丁: 让 CMakeLists.txt 支持预编译翻译文件 (无 LinguistTools 时)
-RUN python3 -c "
-import re
-f = '/build/qbittorrent-src/src/app/CMakeLists.txt'
-t = open(f).read()
-# Patch: add elseif branch for pre-compiled translations
-old1 = '''if (QBT_QM_FILES)
-    target_sources(qbt_app PRIVATE
-        \${QBT_QM_FILES}
-        \"\${qBittorrent_BINARY_DIR}/src/lang/lang.qrc\"
-    )
-endif()'''
-new1 = '''if (QBT_QM_FILES)
-    target_sources(qbt_app PRIVATE
-        \${QBT_QM_FILES}
-        \"\${qBittorrent_BINARY_DIR}/src/lang/lang.qrc\"
-    )
-elseif (EXISTS \"\${qBittorrent_BINARY_DIR}/src/lang/lang.qrc\")
-    file(GLOB _PRECOMPILED_QM \"\${qBittorrent_BINARY_DIR}/src/lang/*.qm\")
-    target_sources(qbt_app PRIVATE
-        \${_PRECOMPILED_QM}
-        \"\${qBittorrent_BINARY_DIR}/src/lang/lang.qrc\"
-    )
-endif()'''
-old2 = '''if (QBT_WEBUI_QM_FILES)
-        target_sources(qbt_app PRIVATE
-            \${QBT_WEBUI_QM_FILES}
-            \${qBittorrent_BINARY_DIR}/src/webui/www/translations/webui_translations.qrc
-        )
-    endif()'''
-new2 = '''if (QBT_WEBUI_QM_FILES)
-        target_sources(qbt_app PRIVATE
-            \${QBT_WEBUI_QM_FILES}
-            \${qBittorrent_BINARY_DIR}/src/webui/www/translations/webui_translations.qrc
-        )
-    elseif (EXISTS \"\${qBittorrent_BINARY_DIR}/src/webui/www/translations/webui_translations.qrc\")
-        file(GLOB _PRECOMPILED_WEBUI_QM \"\${qBittorrent_BINARY_DIR}/src/webui/www/translations/*.qm\")
-        target_sources(qbt_app PRIVATE
-            \${_PRECOMPILED_WEBUI_QM}
-            \${qBittorrent_BINARY_DIR}/src/webui/www/translations/webui_translations.qrc
-        )
-    endif()'''
-t = t.replace(old1, new1).replace(old2, new2)
-open(f, 'w').write(t)
-print('CMakeLists.txt patched')
-"
+COPY docker-sources/patch-cmake.py /tmp/patch-cmake.py
+RUN python3 /tmp/patch-cmake.py && rm /tmp/patch-cmake.py
 
 # 预编译翻译文件 (在 cmake configure 之前，以便 cmake 能找到 .qrc)
 RUN SRC=/build/qbittorrent-src && \
