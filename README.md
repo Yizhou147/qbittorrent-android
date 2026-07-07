@@ -28,19 +28,21 @@
 
 ### 核心组件
 
-1. **Qt5 框架**（从源码编译，禁用 JNI）
-   - 版本：Qt 5.15.2
-   - 编译选项：`-no-gui -no-widgets -openssl-runtime`
-   - 特殊处理：选择性禁用 JNI_OnLoad 避免崩溃
+1. **Qt5 框架**（预编译 qtbase 5.15.2）
+   - 从 FAU 镜像下载预编译的 Android 版 qtbase
+   - 仅需编译头文件，无需从源码编译 Qt
 
-2. **libtorrent**（版本 2.0.11）
-   - 交叉编译目标：`aarch64-linux-android35`
-   - 使用 C++17 标准
+2. **libtorrent**（版本 2.0.10）
+   - 交叉编译目标：`aarch64-linux-android24`
+   - 使用 C++17 标准，静态链接
 
 3. **qBittorrent**（版本 4.6.7）
    - 编译为共享库（libqbt.so）
    - 通过 JNI 桥接在 Android 进程内运行
    - 包含完整的 WebUI 翻译文件
+
+4. **OpenSSL 3.3.2** + **Boost 1.86.0**
+   - 静态编译，嵌入最终产物
 
 ### 关键技术问题及解决方案
 
@@ -70,76 +72,66 @@
 **问题**：LinguistTools 不可用导致翻译文件未编译。
 
 **解决方案**：
-- 在 Docker 容器中安装 `qt5-tools`（提供 `lrelease`）
-- 编译所有 `.ts` 文件为 `.qm` 文件
-- 生成正确的 QRC 文件（前缀 `/www/translations`）
-- 重新编译 qBittorrent 使翻译嵌入二进制文件
+- 在 Docker 容器中安装 `qttools5-dev-tools`（提供 `lrelease`）
+- 在 cmake configure 之前编译所有 `.ts` 文件为 `.qm` 文件
+- 生成 QRC 文件，cmake 自动包含翻译资源
 
 ## 构建指南
 
-### 环境要求
+### 方式一：GitHub Actions 自动构建（推荐）
 
-- Windows 10/11
+1. Fork 本仓库
+2. 在 Actions 页面手动触发 `Build qBittorrent Android APK` 工作流
+3. 等待构建完成（约 10-15 分钟）
+4. 在 Artifacts 页面下载 APK
+
+### 方式二：本地 Docker 构建
+
+#### 环境要求
+
 - Docker Desktop
-- Android Studio（用于 Gradle 构建）
-- Android SDK（API 34）
-- Android NDK r27b
+- 约 10GB 磁盘空间
 
-### 构建步骤
+#### 准备源码
 
-#### 1. 准备 Docker 环境
+将以下文件放入 `docker-sources/` 目录：
+
+| 文件 | 说明 |
+|------|------|
+| `docker-sources-libtorrent.tar.gz` | libtorrent 源码（已在仓库中） |
+| `docker-sources-qbittorrent.tar.gz` | qBittorrent 源码（已在仓库中） |
+
+其余依赖（NDK、Qt5、OpenSSL、Boost）会在构建时自动下载，也可手动下载后放入 `docker-sources/` 加速构建。
+
+#### 一键构建
 
 ```bash
-# 构建 Docker 镜像
-docker build -t qbt-builder -f Dockerfile .
-
-# 启动容器
-docker run -d --name qbt-qt5 qbt-builder tail -f /dev/null
+docker build -t qbittorrent-android .
 ```
 
-#### 2. 编译依赖库（在 Docker 容器内）
+#### 提取产物
 
 ```bash
-# 进入容器
-docker exec -it qbt-qt5 bash
-
-# 执行完整构建脚本
-bash /build/rebuild_all.sh
+mkdir -p build-output
+docker create --name qb-out qbittorrent-android
+docker cp qb-out:/opt/qbt-output/lib/. ./build-output/
+docker rm qb-out
 ```
 
-#### 3. 编译翻译文件
+#### 构建 APK
 
 ```bash
-# 安装 lrelease 工具
-apt-get update && apt-get install -y qt5-tools
+# 复制原生库到 jniLibs
+cp build-output/libqbt_arm64-v8a.so apk-project/app/src/main/jniLibs/arm64-v8a/libqbt.so
+cp build-output/libtorrent-rasterbar.so apk-project/app/src/main/jniLibs/arm64-v8a/
+cp build-output/libc++_shared.so apk-project/app/src/main/jniLibs/arm64-v8a/
 
-# 编译翻译并重新构建 qBittorrent
-bash /build/rebuild_with_translations.sh
-```
-
-#### 4. 收集产物
-
-```bash
-# 从容器复制 libqbt.so
-docker cp qbt-qt5:/output/libqbt.so ./apk-project/app/src/main/jniLibs/arm64-v8a/
-
-# 复制其他依赖库
-docker cp qbt-qt5:/opt/qt5-custom/lib/libQt5Core_arm64-v8a.so ./apk-project/app/src/main/jniLibs/arm64-v8a/
-docker cp qbt-qt5:/opt/qt5-custom/lib/libQt5Network_arm64-v8a.so ./apk-project/app/src/main/jniLibs/arm64-v8a/
-docker cp qbt-qt5:/opt/qt5-custom/lib/libQt5Sql_arm64-v8a.so ./apk-project/app/src/main/jniLibs/arm64-v8a/
-docker cp qbt-qt5:/opt/qt5-custom/lib/libQt5Xml_arm64-v8a.so ./apk-project/app/src/main/jniLibs/arm64-v8a/
-docker cp qbt-qt5:/opt/openssl-arm64/lib/libssl.so ./apk-project/app/src/main/jniLibs/arm64-v8a/
-docker cp qbt-qt5:/opt/openssl-arm64/lib/libcrypto.so ./apk-project/app/src/main/jniLibs/arm64-v8a/
-docker cp qbt-qt5:/opt/boost-arm64/lib/libboost_system.so ./apk-project/app/src/main/jniLibs/arm64-v8a/
-docker cp qbt-qt5:/opt/libtorrent-arm64/lib/libtorrent-rasterbar.so ./apk-project/app/src/main/jniLibs/arm64-v8a/
-```
-
-#### 5. 构建 APK
-
-```bash
+# 构建 APK
 cd apk-project
-./gradlew assembleDebug
+./gradlew assembleRelease
 ```
+
+APK 输出：`apk-project/app/build/outputs/apk/release/app-release.apk`（已签名，可直接安装）
 
 ## 使用说明
 
@@ -166,21 +158,21 @@ cd apk-project
 
 ```
 qbittorrent-android/
-├── Dockerfile                 # Docker 构建环境
-├── rebuild_all.sh             # 完整构建脚本
-├── rebuild_with_translations.sh # 翻译编译脚本
-├── docker-sources/            # 源码和补丁
-│   ├── qbittorrent/          # qBittorrent 源码
-│   ├── qt-everywhere-src-5.15.2/  # Qt5 源码
-│   └── libtorrent/           # libtorrent 源码
-└── apk-project/              # Android 项目
-    ├── app/
-    │   ├── src/main/
-    │   │   ├── java/         # Java 源码
-    │   │   ├── jniLibs/      # 原生库
-    │   │   └── res/          # 资源文件
-    │   └── build.gradle
-    └── build.gradle
+├── Dockerfile                    # Docker 构建环境（一步完成所有编译）
+├── docker-sources/               # 源码和补丁
+│   ├── docker-sources-libtorrent.tar.gz  # libtorrent 源码
+│   ├── docker-sources-qbittorrent.tar.gz # qBittorrent 源码
+│   └── patch-cmake.py            # CMakeLists.txt 补丁脚本
+├── apk-project/                  # Android 项目
+│   ├── app/
+│   │   ├── src/main/
+│   │   │   ├── java/             # Java 源码
+│   │   │   ├── jniLibs/          # 原生库
+│   │   │   └── res/              # 资源文件
+│   │   └── build.gradle
+│   └── build.gradle
+└── .github/workflows/
+    └── build-android.yml         # CI/CD 工作流
 ```
 
 ## 已知问题
