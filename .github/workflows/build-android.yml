@@ -160,7 +160,7 @@ jobs:
 
       - name: Rename APK
         run: |
-          mv apk-project/app/build/outputs/apk/release/app-release-unsigned.apk \
+          mv apk-project/app/build/outputs/apk/release/app-release.apk \
              qbittorrent-android-${{ steps.version.outputs.version }}.apk
 
       - name: Upload APK
