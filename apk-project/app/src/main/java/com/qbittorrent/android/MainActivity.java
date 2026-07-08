@@ -350,11 +350,24 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == REQUEST_FILE_CHOOSER) {
             if (fileUploadCallback == null) return;
             Uri[] results = null;
-            if (resultCode == RESULT_OK && data != null) {
-                String dataString = data.getDataString();
-                if (dataString != null) {
-                    results = new Uri[]{Uri.parse(dataString)};
+            if (resultCode == RESULT_OK) {
+                if (data != null) {
+                    // 优先检查 ClipData（某些文件选择器返回多个文件）
+                    if (data.getClipData() != null) {
+                        int count = data.getClipData().getItemCount();
+                        results = new Uri[count];
+                        for (int i = 0; i < count; i++) {
+                            results[i] = data.getClipData().getItemAt(i).getUri();
+                        }
+                    } else if (data.getData() != null) {
+                        // 单文件选择
+                        results = new Uri[]{data.getData()};
+                    } else if (data.getDataString() != null) {
+                        results = new Uri[]{Uri.parse(data.getDataString())};
+                    }
                 }
+                // 如果 data 为 null 但 resultCode 为 OK，某些设备需要特殊处理
+                // 此时 results 保持 null，WebView 会收到取消通知
             }
             fileUploadCallback.onReceiveValue(results);
             fileUploadCallback = null;
