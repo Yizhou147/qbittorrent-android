@@ -1,0 +1,8 @@
+prefix=/opt/qbt-output
+libdir=${prefix}/lib
+
+Name: libtorrent
+Description: Bittorrent library
+Version: 2.0.10
+Libs: -L${libdir} -ltorrent-rasterbar -pthread -lssl -lcrypto
+Cflags: -fexceptions  -pthread -I/opt/qbt-output/include -I/opt/qbt-output/include -DTORRENT_LINKING_SHARED -DBOOST_ASIO_ENABLE_CANCELIO -DBOOST_ASIO_NO_DEPRECATED -DTORRENT_USE_OPENSSL -DTORRENT_USE_LIBCRYPTO -DTORRENT_SSL_PEERS -DOPENSSL_NO_SSL2
