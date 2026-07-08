@@ -1,4 +1,0 @@
-#Wed Jul 08 18:37:07 CST 2026
-base.0=C\:\\Users\\xieyi\\Documents\\trae_projects\\qb 安卓\\qbittorrent-android\\apk-project\\app\\build\\intermediates\\dex\\release\\mergeDexRelease\\classes.dex
-renamed.0=classes.dex
-path.0=classes.dex
