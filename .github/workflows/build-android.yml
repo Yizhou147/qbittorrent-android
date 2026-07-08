@@ -11,6 +11,8 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
