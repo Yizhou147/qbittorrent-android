@@ -1,14 +1,58 @@
-# Build logs
-*.log
+# Built application files
+*.apk
+*.ap_
+*.aab
 
-# Docker output
-output/
+# Files for the ART/Dalvik VM
+*.dex
 
-# Source code (downloaded during Docker build), but keep tar.gz archives and scripts
-docker-sources/*
-!docker-sources/*.tar.gz
-!docker-sources/*.py
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+
+# Gradle files
+.gradle/
+build/
+local.properties
+
+# Android Studio
+*.iml
+.idea/
+.DS_Store
+
+# NDK
+obj/
+
+# Build output
+build-output/
+release-apk/
+
+# Docker sources (large files)
+docker-sources/*.tar.gz
+docker-sources/*.zip
 
 # Temporary files
+*.log
 *.tmp
 *.bak
+*.swp
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+qBittorrent.conf
+qbittorrent-android-debug.apk
+qbittorrent-android-src.tar.gz
+fix_libtorrent_static.sh
