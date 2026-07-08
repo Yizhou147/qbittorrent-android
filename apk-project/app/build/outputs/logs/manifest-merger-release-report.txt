@@ -1,0 +1,379 @@
+-- Merging decision tree log ---
+manifest
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:2:1-70:12
+INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:2:1-70:12
+INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:2:1-70:12
+INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:2:1-70:12
+MERGED from [com.google.android.material:material:1.11.0] C:\Users\xieyi\.gradle\caches\transforms-4\518aff9b5455e450b373c9594763223e\transformed\material-1.11.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.appcompat:appcompat-resources:1.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\2e82f70f16580b3aab431b5ba2679c77\transformed\appcompat-resources-1.6.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] C:\Users\xieyi\.gradle\caches\transforms-4\9fecc0ea80a467f31a5780db7b42b71c\transformed\constraintlayout-2.0.1\AndroidManifest.xml:2:1-11:12
+MERGED from [androidx.appcompat:appcompat:1.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\bc020576218432ec790f99842ad6708e\transformed\appcompat-1.6.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.webkit:webkit:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\01707d76fb72b6b506b15a2cc61aa19c\transformed\webkit-1.9.0\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.dynamicanimation:dynamicanimation:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\178c9fea5f4e6f833e5b93aa8498b90b\transformed\dynamicanimation-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.legacy:legacy-support-core-utils:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\1e0bea0431272f7726f6cba827f00e34\transformed\legacy-support-core-utils-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.localbroadcastmanager:localbroadcastmanager:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\9698aa370f9002b330f2be73f28534bf\transformed\localbroadcastmanager-1.1.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.viewpager2:viewpager2:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\e4f88e9d33caea1fca50beb2dff8c582\transformed\viewpager2-1.0.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.fragment:fragment:1.3.6] C:\Users\xieyi\.gradle\caches\transforms-4\8e8d1b0f251ca760ec94bdb77fcbb2ed\transformed\fragment-1.3.6\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.activity:activity:1.8.0] C:\Users\xieyi\.gradle\caches\transforms-4\68812e78e66dfbcd59f65afe55b2da05\transformed\activity-1.8.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.emoji2:emoji2-views-helper:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\2db681decec28d1354dc94e2e707d43f\transformed\emoji2-views-helper-1.2.0\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:17:1-35:12
+MERGED from [androidx.drawerlayout:drawerlayout:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\114c27a2e74e421f982e62217c92aef5\transformed\drawerlayout-1.1.1\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.coordinatorlayout:coordinatorlayout:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\19f43ab90e72438112ff231769719d7f\transformed\coordinatorlayout-1.1.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.transition:transition:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\823d342e6879f2990958d1ccf1fe337e\transformed\transition-1.2.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\5635b4e3caccc7898015d573f141920e\transformed\vectordrawable-animated-1.1.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\9db17f122ceeb1c3235a8f2ee9de2554\transformed\vectordrawable-1.1.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.loader:loader:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\abe256e93817ae42579a76f032cf7e52\transformed\loader-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.savedstate:savedstate:1.2.1] C:\Users\xieyi\.gradle\caches\transforms-4\a48517a2843964241f57cc0a6c251238\transformed\savedstate-1.2.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-process:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\AndroidManifest.xml:17:1-35:12
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\0d380555147b80b51751cf6bd8828956\transformed\lifecycle-livedata-core-2.6.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\c8c32571d833eabb80ccffee3e7ed692\transformed\lifecycle-livedata-2.6.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9695c95323afb568ed7a2515a5dd4616\transformed\lifecycle-viewmodel-2.6.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.lifecycle:lifecycle-runtime:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\8e325f3c132075b3ee88278ee43bab0f\transformed\lifecycle-runtime-2.6.1\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\580fbc07b0e5b359f5bdce814d8c60b3\transformed\lifecycle-viewmodel-savedstate-2.6.1\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.core:core-ktx:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\7db1be7bb620196b6d9f4e51b504a6ec\transformed\core-ktx-1.9.0\AndroidManifest.xml:2:1-7:12
+MERGED from [androidx.viewpager:viewpager:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\5ad964eb79a7eb8d460aeb47b4b406ee\transformed\viewpager-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.recyclerview:recyclerview:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\5079bf911dfd33c4befcca28a5d6c504\transformed\recyclerview-1.1.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.customview:customview:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\78b04baaf55de87e556b64a231d9530f\transformed\customview-1.1.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:17:1-30:12
+MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\7f67fd2939603007d7594ca0530b8538\transformed\cursoradapter-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.cardview:cardview:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\93fe7cf6797acd1154e9f6965486953a\transformed\cardview-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\a60e7418488218a045b6ca3f229669f3\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:17:1-27:12
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:17:1-55:12
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\e57e5190530aa1f008ccc348cb33d0fa\transformed\startup-runtime-1.1.1\AndroidManifest.xml:17:1-33:12
+MERGED from [androidx.tracing:tracing:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\7e65f368475b6bb4f5bdfd0cb266428e\transformed\tracing-1.0.0\AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.interpolator:interpolator:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\530aad9491d07b52c2de42bd8a133c96\transformed\interpolator-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\16cf50259928a7f303a00648d160a53a\transformed\core-runtime-2.2.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.documentfile:documentfile:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\a6c4860120fd648406769680235d11ac\transformed\documentfile-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.print:print:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\e44d1f519261216df532f8d22fb7c549\transformed\print-1.0.0\AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.annotation:annotation-experimental:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\f3bd26ae14cb7e613eeeaa9b4c7caf15\transformed\annotation-experimental-1.3.0\AndroidManifest.xml:17:1-22:12
+	package
+		INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml
+	android:versionName
+		INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml
+	android:versionCode
+		INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml
+	xmlns:android
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:2:11-69
+uses-permission#android.permission.INTERNET
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:4:5-67
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:4:22-64
+uses-permission#android.permission.ACCESS_NETWORK_STATE
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:5:5-79
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:5:22-76
+uses-permission#android.permission.FOREGROUND_SERVICE
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:6:5-77
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:6:22-74
+uses-permission#android.permission.FOREGROUND_SERVICE_DATA_SYNC
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:7:5-87
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:7:22-84
+uses-permission#android.permission.POST_NOTIFICATIONS
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:8:5-77
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:8:22-74
+uses-permission#android.permission.WRITE_EXTERNAL_STORAGE
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:9:5-81
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:9:22-78
+uses-permission#android.permission.READ_EXTERNAL_STORAGE
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:10:5-80
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:10:22-77
+uses-permission#android.permission.MANAGE_EXTERNAL_STORAGE
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:11:5-82
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:11:22-79
+uses-permission#android.permission.CREATE_SHORTCUT
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:12:5-74
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:12:22-71
+application
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:14:5-69:19
+INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:14:5-69:19
+MERGED from [com.google.android.material:material:1.11.0] C:\Users\xieyi\.gradle\caches\transforms-4\518aff9b5455e450b373c9594763223e\transformed\material-1.11.0\AndroidManifest.xml:22:5-20
+MERGED from [com.google.android.material:material:1.11.0] C:\Users\xieyi\.gradle\caches\transforms-4\518aff9b5455e450b373c9594763223e\transformed\material-1.11.0\AndroidManifest.xml:22:5-20
+MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] C:\Users\xieyi\.gradle\caches\transforms-4\9fecc0ea80a467f31a5780db7b42b71c\transformed\constraintlayout-2.0.1\AndroidManifest.xml:9:5-20
+MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] C:\Users\xieyi\.gradle\caches\transforms-4\9fecc0ea80a467f31a5780db7b42b71c\transformed\constraintlayout-2.0.1\AndroidManifest.xml:9:5-20
+MERGED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.lifecycle:lifecycle-process:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.lifecycle:lifecycle-process:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\AndroidManifest.xml:23:5-33:19
+MERGED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:28:5-89
+MERGED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:28:5-89
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\a60e7418488218a045b6ca3f229669f3\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:24:5-25:19
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\a60e7418488218a045b6ca3f229669f3\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:24:5-25:19
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:23:5-53:19
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:23:5-53:19
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\e57e5190530aa1f008ccc348cb33d0fa\transformed\startup-runtime-1.1.1\AndroidManifest.xml:25:5-31:19
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\e57e5190530aa1f008ccc348cb33d0fa\transformed\startup-runtime-1.1.1\AndroidManifest.xml:25:5-31:19
+	android:extractNativeLibs
+		INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml
+	android:requestLegacyExternalStorage
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:20:9-52
+	android:appComponentFactory
+		ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:28:18-86
+	android:label
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:17:9-36
+	android:icon
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:16:9-43
+	android:allowBackup
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:15:9-35
+	android:theme
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:18:9-49
+	android:networkSecurityConfig
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:19:9-69
+activity#com.qbittorrent.android.WelcomeActivity
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:23:9-31:20
+	android:launchMode
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:26:13-44
+	android:exported
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:25:13-36
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:24:13-44
+intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:27:13-30:29
+action#android.intent.action.MAIN
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:28:17-69
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:28:25-66
+category#android.intent.category.LAUNCHER
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:29:17-77
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:29:27-74
+activity#com.qbittorrent.android.MainActivity
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:34:9-51:20
+	android:launchMode
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:37:13-44
+	android:exported
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:36:13-36
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:35:13-41
+intent-filter#action:name:android.intent.action.VIEW+category:name:android.intent.category.BROWSABLE+category:name:android.intent.category.DEFAULT+data:scheme:magnet
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:39:13-44:29
+action#android.intent.action.VIEW
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:40:17-69
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:40:25-66
+category#android.intent.category.DEFAULT
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:41:17-76
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:41:27-73
+category#android.intent.category.BROWSABLE
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:42:17-78
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:42:27-75
+data
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:43:17-49
+	android:scheme
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:43:23-46
+	android:mimeType
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:49:23-66
+intent-filter#action:name:android.intent.action.VIEW+category:name:android.intent.category.DEFAULT+data:mimeType:application/x-bittorrent
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:46:13-50:29
+activity#com.qbittorrent.android.SettingsActivity
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:54:9-62:20
+	android:launchMode
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:57:13-44
+	android:exported
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:56:13-36
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:55:13-45
+intent-filter#action:name:com.qbittorrent.android.SETTINGS+category:name:android.intent.category.DEFAULT
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:58:13-61:29
+action#com.qbittorrent.android.SETTINGS
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:59:17-75
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:59:25-72
+service#com.qbittorrent.android.QBittorrentService
+ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:64:9-67:40
+	android:exported
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:67:13-37
+	android:foregroundServiceType
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:66:13-53
+	android:name
+		ADDED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml:65:13-47
+uses-sdk
+INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml reason: use-sdk injection requested
+INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml
+INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml
+MERGED from [com.google.android.material:material:1.11.0] C:\Users\xieyi\.gradle\caches\transforms-4\518aff9b5455e450b373c9594763223e\transformed\material-1.11.0\AndroidManifest.xml:20:5-44
+MERGED from [com.google.android.material:material:1.11.0] C:\Users\xieyi\.gradle\caches\transforms-4\518aff9b5455e450b373c9594763223e\transformed\material-1.11.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.appcompat:appcompat-resources:1.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\2e82f70f16580b3aab431b5ba2679c77\transformed\appcompat-resources-1.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.appcompat:appcompat-resources:1.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\2e82f70f16580b3aab431b5ba2679c77\transformed\appcompat-resources-1.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] C:\Users\xieyi\.gradle\caches\transforms-4\9fecc0ea80a467f31a5780db7b42b71c\transformed\constraintlayout-2.0.1\AndroidManifest.xml:5:5-7:41
+MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] C:\Users\xieyi\.gradle\caches\transforms-4\9fecc0ea80a467f31a5780db7b42b71c\transformed\constraintlayout-2.0.1\AndroidManifest.xml:5:5-7:41
+MERGED from [androidx.appcompat:appcompat:1.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\bc020576218432ec790f99842ad6708e\transformed\appcompat-1.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.appcompat:appcompat:1.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\bc020576218432ec790f99842ad6708e\transformed\appcompat-1.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.webkit:webkit:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\01707d76fb72b6b506b15a2cc61aa19c\transformed\webkit-1.9.0\AndroidManifest.xml:5:5-44
+MERGED from [androidx.webkit:webkit:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\01707d76fb72b6b506b15a2cc61aa19c\transformed\webkit-1.9.0\AndroidManifest.xml:5:5-44
+MERGED from [androidx.dynamicanimation:dynamicanimation:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\178c9fea5f4e6f833e5b93aa8498b90b\transformed\dynamicanimation-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.dynamicanimation:dynamicanimation:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\178c9fea5f4e6f833e5b93aa8498b90b\transformed\dynamicanimation-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.legacy:legacy-support-core-utils:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\1e0bea0431272f7726f6cba827f00e34\transformed\legacy-support-core-utils-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.legacy:legacy-support-core-utils:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\1e0bea0431272f7726f6cba827f00e34\transformed\legacy-support-core-utils-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.localbroadcastmanager:localbroadcastmanager:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\9698aa370f9002b330f2be73f28534bf\transformed\localbroadcastmanager-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.localbroadcastmanager:localbroadcastmanager:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\9698aa370f9002b330f2be73f28534bf\transformed\localbroadcastmanager-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.viewpager2:viewpager2:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\e4f88e9d33caea1fca50beb2dff8c582\transformed\viewpager2-1.0.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.viewpager2:viewpager2:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\e4f88e9d33caea1fca50beb2dff8c582\transformed\viewpager2-1.0.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.fragment:fragment:1.3.6] C:\Users\xieyi\.gradle\caches\transforms-4\8e8d1b0f251ca760ec94bdb77fcbb2ed\transformed\fragment-1.3.6\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.fragment:fragment:1.3.6] C:\Users\xieyi\.gradle\caches\transforms-4\8e8d1b0f251ca760ec94bdb77fcbb2ed\transformed\fragment-1.3.6\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.activity:activity:1.8.0] C:\Users\xieyi\.gradle\caches\transforms-4\68812e78e66dfbcd59f65afe55b2da05\transformed\activity-1.8.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.activity:activity:1.8.0] C:\Users\xieyi\.gradle\caches\transforms-4\68812e78e66dfbcd59f65afe55b2da05\transformed\activity-1.8.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.emoji2:emoji2-views-helper:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\2db681decec28d1354dc94e2e707d43f\transformed\emoji2-views-helper-1.2.0\AndroidManifest.xml:5:5-44
+MERGED from [androidx.emoji2:emoji2-views-helper:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\2db681decec28d1354dc94e2e707d43f\transformed\emoji2-views-helper-1.2.0\AndroidManifest.xml:5:5-44
+MERGED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:21:5-44
+MERGED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:21:5-44
+MERGED from [androidx.drawerlayout:drawerlayout:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\114c27a2e74e421f982e62217c92aef5\transformed\drawerlayout-1.1.1\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.drawerlayout:drawerlayout:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\114c27a2e74e421f982e62217c92aef5\transformed\drawerlayout-1.1.1\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.coordinatorlayout:coordinatorlayout:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\19f43ab90e72438112ff231769719d7f\transformed\coordinatorlayout-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.coordinatorlayout:coordinatorlayout:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\19f43ab90e72438112ff231769719d7f\transformed\coordinatorlayout-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.transition:transition:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\823d342e6879f2990958d1ccf1fe337e\transformed\transition-1.2.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.transition:transition:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\823d342e6879f2990958d1ccf1fe337e\transformed\transition-1.2.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\5635b4e3caccc7898015d573f141920e\transformed\vectordrawable-animated-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\5635b4e3caccc7898015d573f141920e\transformed\vectordrawable-animated-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\9db17f122ceeb1c3235a8f2ee9de2554\transformed\vectordrawable-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\9db17f122ceeb1c3235a8f2ee9de2554\transformed\vectordrawable-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.loader:loader:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\abe256e93817ae42579a76f032cf7e52\transformed\loader-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.loader:loader:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\abe256e93817ae42579a76f032cf7e52\transformed\loader-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate:1.2.1] C:\Users\xieyi\.gradle\caches\transforms-4\a48517a2843964241f57cc0a6c251238\transformed\savedstate-1.2.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.savedstate:savedstate:1.2.1] C:\Users\xieyi\.gradle\caches\transforms-4\a48517a2843964241f57cc0a6c251238\transformed\savedstate-1.2.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-process:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\AndroidManifest.xml:21:5-44
+MERGED from [androidx.lifecycle:lifecycle-process:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\AndroidManifest.xml:21:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\0d380555147b80b51751cf6bd8828956\transformed\lifecycle-livedata-core-2.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata-core:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\0d380555147b80b51751cf6bd8828956\transformed\lifecycle-livedata-core-2.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\c8c32571d833eabb80ccffee3e7ed692\transformed\lifecycle-livedata-2.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-livedata:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\c8c32571d833eabb80ccffee3e7ed692\transformed\lifecycle-livedata-2.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9695c95323afb568ed7a2515a5dd4616\transformed\lifecycle-viewmodel-2.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9695c95323afb568ed7a2515a5dd4616\transformed\lifecycle-viewmodel-2.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\8e325f3c132075b3ee88278ee43bab0f\transformed\lifecycle-runtime-2.6.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-runtime:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\8e325f3c132075b3ee88278ee43bab0f\transformed\lifecycle-runtime-2.6.1\AndroidManifest.xml:5:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\580fbc07b0e5b359f5bdce814d8c60b3\transformed\lifecycle-viewmodel-savedstate-2.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.lifecycle:lifecycle-viewmodel-savedstate:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\580fbc07b0e5b359f5bdce814d8c60b3\transformed\lifecycle-viewmodel-savedstate-2.6.1\AndroidManifest.xml:20:5-44
+MERGED from [androidx.core:core-ktx:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\7db1be7bb620196b6d9f4e51b504a6ec\transformed\core-ktx-1.9.0\AndroidManifest.xml:5:5-44
+MERGED from [androidx.core:core-ktx:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\7db1be7bb620196b6d9f4e51b504a6ec\transformed\core-ktx-1.9.0\AndroidManifest.xml:5:5-44
+MERGED from [androidx.viewpager:viewpager:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\5ad964eb79a7eb8d460aeb47b4b406ee\transformed\viewpager-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.viewpager:viewpager:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\5ad964eb79a7eb8d460aeb47b4b406ee\transformed\viewpager-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.recyclerview:recyclerview:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\5079bf911dfd33c4befcca28a5d6c504\transformed\recyclerview-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.recyclerview:recyclerview:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\5079bf911dfd33c4befcca28a5d6c504\transformed\recyclerview-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.customview:customview:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\78b04baaf55de87e556b64a231d9530f\transformed\customview-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.customview:customview:1.1.0] C:\Users\xieyi\.gradle\caches\transforms-4\78b04baaf55de87e556b64a231d9530f\transformed\customview-1.1.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\7f67fd2939603007d7594ca0530b8538\transformed\cursoradapter-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\7f67fd2939603007d7594ca0530b8538\transformed\cursoradapter-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.cardview:cardview:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\93fe7cf6797acd1154e9f6965486953a\transformed\cardview-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.cardview:cardview:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\93fe7cf6797acd1154e9f6965486953a\transformed\cardview-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\a60e7418488218a045b6ca3f229669f3\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\a60e7418488218a045b6ca3f229669f3\transformed\versionedparcelable-1.1.1\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:21:5-44
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:21:5-44
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\e57e5190530aa1f008ccc348cb33d0fa\transformed\startup-runtime-1.1.1\AndroidManifest.xml:21:5-23:41
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\e57e5190530aa1f008ccc348cb33d0fa\transformed\startup-runtime-1.1.1\AndroidManifest.xml:21:5-23:41
+MERGED from [androidx.tracing:tracing:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\7e65f368475b6bb4f5bdfd0cb266428e\transformed\tracing-1.0.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.tracing:tracing:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\7e65f368475b6bb4f5bdfd0cb266428e\transformed\tracing-1.0.0\AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.interpolator:interpolator:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\530aad9491d07b52c2de42bd8a133c96\transformed\interpolator-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.interpolator:interpolator:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\530aad9491d07b52c2de42bd8a133c96\transformed\interpolator-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\16cf50259928a7f303a00648d160a53a\transformed\core-runtime-2.2.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.arch.core:core-runtime:2.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\16cf50259928a7f303a00648d160a53a\transformed\core-runtime-2.2.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.documentfile:documentfile:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\a6c4860120fd648406769680235d11ac\transformed\documentfile-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.documentfile:documentfile:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\a6c4860120fd648406769680235d11ac\transformed\documentfile-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.print:print:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\e44d1f519261216df532f8d22fb7c549\transformed\print-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.print:print:1.0.0] C:\Users\xieyi\.gradle\caches\transforms-4\e44d1f519261216df532f8d22fb7c549\transformed\print-1.0.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.annotation:annotation-experimental:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\f3bd26ae14cb7e613eeeaa9b4c7caf15\transformed\annotation-experimental-1.3.0\AndroidManifest.xml:20:5-44
+MERGED from [androidx.annotation:annotation-experimental:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\f3bd26ae14cb7e613eeeaa9b4c7caf15\transformed\annotation-experimental-1.3.0\AndroidManifest.xml:20:5-44
+	android:targetSdkVersion
+		INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml
+	android:minSdkVersion
+		INJECTED from C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\AndroidManifest.xml
+provider#androidx.startup.InitializationProvider
+ADDED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.lifecycle:lifecycle-process:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.lifecycle:lifecycle-process:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:24:9-32:20
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\e57e5190530aa1f008ccc348cb33d0fa\transformed\startup-runtime-1.1.1\AndroidManifest.xml:26:9-30:34
+MERGED from [androidx.startup:startup-runtime:1.1.1] C:\Users\xieyi\.gradle\caches\transforms-4\e57e5190530aa1f008ccc348cb33d0fa\transformed\startup-runtime-1.1.1\AndroidManifest.xml:26:9-30:34
+	tools:node
+		ADDED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:28:13-31
+	android:authorities
+		ADDED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:26:13-68
+	android:exported
+		ADDED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:27:13-37
+	android:name
+		ADDED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:25:13-67
+meta-data#androidx.emoji2.text.EmojiCompatInitializer
+ADDED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:29:13-31:52
+	android:value
+		ADDED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:31:17-49
+	android:name
+		ADDED from [androidx.emoji2:emoji2:1.2.0] C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\AndroidManifest.xml:30:17-75
+meta-data#androidx.lifecycle.ProcessLifecycleInitializer
+ADDED from [androidx.lifecycle:lifecycle-process:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\AndroidManifest.xml:29:13-31:52
+	android:value
+		ADDED from [androidx.lifecycle:lifecycle-process:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\AndroidManifest.xml:31:17-49
+	android:name
+		ADDED from [androidx.lifecycle:lifecycle-process:2.6.1] C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\AndroidManifest.xml:30:17-78
+permission#${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:22:5-24:47
+	android:protectionLevel
+		ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:24:9-44
+	android:name
+		ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:23:9-81
+permission#com.qbittorrent.android.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:22:5-24:47
+	android:protectionLevel
+		ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:24:9-44
+	android:name
+		ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:23:9-81
+uses-permission#${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:26:5-97
+	android:name
+		ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:26:22-94
+uses-permission#com.qbittorrent.android.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:26:5-97
+	android:name
+		ADDED from [androidx.core:core:1.9.0] C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\AndroidManifest.xml:26:22-94
+meta-data#androidx.profileinstaller.ProfileInstallerInitializer
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:29:13-31:52
+	android:value
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:31:17-49
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:30:17-85
+receiver#androidx.profileinstaller.ProfileInstallReceiver
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:34:9-52:20
+	android:enabled
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:37:13-35
+	android:exported
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:38:13-36
+	android:permission
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:39:13-57
+	android:directBootAware
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:36:13-44
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:35:13-76
+intent-filter#action:name:androidx.profileinstaller.action.INSTALL_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:40:13-42:29
+action#androidx.profileinstaller.action.INSTALL_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:41:17-91
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:41:25-88
+intent-filter#action:name:androidx.profileinstaller.action.SKIP_FILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:43:13-45:29
+action#androidx.profileinstaller.action.SKIP_FILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:44:17-85
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:44:25-82
+intent-filter#action:name:androidx.profileinstaller.action.SAVE_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:46:13-48:29
+action#androidx.profileinstaller.action.SAVE_PROFILE
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:47:17-88
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:47:25-85
+intent-filter#action:name:androidx.profileinstaller.action.BENCHMARK_OPERATION
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:49:13-51:29
+action#androidx.profileinstaller.action.BENCHMARK_OPERATION
+ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:50:17-95
+	android:name
+		ADDED from [androidx.profileinstaller:profileinstaller:1.3.0] C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\AndroidManifest.xml:50:25-92

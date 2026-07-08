@@ -1,0 +1,36 @@
+com.qbittorrent.android.app-webkit-1.9.0-0 C:\Users\xieyi\.gradle\caches\transforms-4\01707d76fb72b6b506b15a2cc61aa19c\transformed\webkit-1.9.0\res
+com.qbittorrent.android.app-lifecycle-livedata-core-2.6.1-1 C:\Users\xieyi\.gradle\caches\transforms-4\0d380555147b80b51751cf6bd8828956\transformed\lifecycle-livedata-core-2.6.1\res
+com.qbittorrent.android.app-drawerlayout-1.1.1-2 C:\Users\xieyi\.gradle\caches\transforms-4\114c27a2e74e421f982e62217c92aef5\transformed\drawerlayout-1.1.1\res
+com.qbittorrent.android.app-core-runtime-2.2.0-3 C:\Users\xieyi\.gradle\caches\transforms-4\16cf50259928a7f303a00648d160a53a\transformed\core-runtime-2.2.0\res
+com.qbittorrent.android.app-coordinatorlayout-1.1.0-4 C:\Users\xieyi\.gradle\caches\transforms-4\19f43ab90e72438112ff231769719d7f\transformed\coordinatorlayout-1.1.0\res
+com.qbittorrent.android.app-emoji2-views-helper-1.2.0-5 C:\Users\xieyi\.gradle\caches\transforms-4\2db681decec28d1354dc94e2e707d43f\transformed\emoji2-views-helper-1.2.0\res
+com.qbittorrent.android.app-appcompat-resources-1.6.1-6 C:\Users\xieyi\.gradle\caches\transforms-4\2e82f70f16580b3aab431b5ba2679c77\transformed\appcompat-resources-1.6.1\res
+com.qbittorrent.android.app-recyclerview-1.1.0-7 C:\Users\xieyi\.gradle\caches\transforms-4\5079bf911dfd33c4befcca28a5d6c504\transformed\recyclerview-1.1.0\res
+com.qbittorrent.android.app-material-1.11.0-8 C:\Users\xieyi\.gradle\caches\transforms-4\518aff9b5455e450b373c9594763223e\transformed\material-1.11.0\res
+com.qbittorrent.android.app-emoji2-1.2.0-9 C:\Users\xieyi\.gradle\caches\transforms-4\542ba1d3077bf1faa1710d081dc94a16\transformed\emoji2-1.2.0\res
+com.qbittorrent.android.app-core-1.9.0-10 C:\Users\xieyi\.gradle\caches\transforms-4\566acc714c8179f607f6e5bc825559b8\transformed\core-1.9.0\res
+com.qbittorrent.android.app-lifecycle-viewmodel-savedstate-2.6.1-11 C:\Users\xieyi\.gradle\caches\transforms-4\580fbc07b0e5b359f5bdce814d8c60b3\transformed\lifecycle-viewmodel-savedstate-2.6.1\res
+com.qbittorrent.android.app-activity-1.8.0-12 C:\Users\xieyi\.gradle\caches\transforms-4\68812e78e66dfbcd59f65afe55b2da05\transformed\activity-1.8.0\res
+com.qbittorrent.android.app-core-ktx-1.9.0-13 C:\Users\xieyi\.gradle\caches\transforms-4\7db1be7bb620196b6d9f4e51b504a6ec\transformed\core-ktx-1.9.0\res
+com.qbittorrent.android.app-transition-1.2.0-14 C:\Users\xieyi\.gradle\caches\transforms-4\823d342e6879f2990958d1ccf1fe337e\transformed\transition-1.2.0\res
+com.qbittorrent.android.app-lifecycle-runtime-2.6.1-15 C:\Users\xieyi\.gradle\caches\transforms-4\8e325f3c132075b3ee88278ee43bab0f\transformed\lifecycle-runtime-2.6.1\res
+com.qbittorrent.android.app-fragment-1.3.6-16 C:\Users\xieyi\.gradle\caches\transforms-4\8e8d1b0f251ca760ec94bdb77fcbb2ed\transformed\fragment-1.3.6\res
+com.qbittorrent.android.app-profileinstaller-1.3.0-17 C:\Users\xieyi\.gradle\caches\transforms-4\900d7b777c0f07cfa0018ba73e5f57b2\transformed\profileinstaller-1.3.0\res
+com.qbittorrent.android.app-lifecycle-process-2.6.1-18 C:\Users\xieyi\.gradle\caches\transforms-4\9371e648b9aa2cad8760784cb03f524c\transformed\lifecycle-process-2.6.1\res
+com.qbittorrent.android.app-cardview-1.0.0-19 C:\Users\xieyi\.gradle\caches\transforms-4\93fe7cf6797acd1154e9f6965486953a\transformed\cardview-1.0.0\res
+com.qbittorrent.android.app-lifecycle-viewmodel-2.6.1-20 C:\Users\xieyi\.gradle\caches\transforms-4\9695c95323afb568ed7a2515a5dd4616\transformed\lifecycle-viewmodel-2.6.1\res
+com.qbittorrent.android.app-localbroadcastmanager-1.1.0-21 C:\Users\xieyi\.gradle\caches\transforms-4\9698aa370f9002b330f2be73f28534bf\transformed\localbroadcastmanager-1.1.0\res
+com.qbittorrent.android.app-constraintlayout-2.0.1-22 C:\Users\xieyi\.gradle\caches\transforms-4\9fecc0ea80a467f31a5780db7b42b71c\transformed\constraintlayout-2.0.1\res
+com.qbittorrent.android.app-savedstate-1.2.1-23 C:\Users\xieyi\.gradle\caches\transforms-4\a48517a2843964241f57cc0a6c251238\transformed\savedstate-1.2.1\res
+com.qbittorrent.android.app-appcompat-1.6.1-24 C:\Users\xieyi\.gradle\caches\transforms-4\bc020576218432ec790f99842ad6708e\transformed\appcompat-1.6.1\res
+com.qbittorrent.android.app-lifecycle-livedata-2.6.1-25 C:\Users\xieyi\.gradle\caches\transforms-4\c8c32571d833eabb80ccffee3e7ed692\transformed\lifecycle-livedata-2.6.1\res
+com.qbittorrent.android.app-viewpager2-1.0.0-26 C:\Users\xieyi\.gradle\caches\transforms-4\e4f88e9d33caea1fca50beb2dff8c582\transformed\viewpager2-1.0.0\res
+com.qbittorrent.android.app-startup-runtime-1.1.1-27 C:\Users\xieyi\.gradle\caches\transforms-4\e57e5190530aa1f008ccc348cb33d0fa\transformed\startup-runtime-1.1.1\res
+com.qbittorrent.android.app-annotation-experimental-1.3.0-28 C:\Users\xieyi\.gradle\caches\transforms-4\f3bd26ae14cb7e613eeeaa9b4c7caf15\transformed\annotation-experimental-1.3.0\res
+com.qbittorrent.android.app-pngs-29 C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\build\generated\res\pngs\release
+com.qbittorrent.android.app-resValues-30 C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\build\generated\res\resValues\release
+com.qbittorrent.android.app-packageReleaseResources-31 C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\build\intermediates\incremental\release\packageReleaseResources\merged.dir
+com.qbittorrent.android.app-packageReleaseResources-32 C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\build\intermediates\incremental\release\packageReleaseResources\stripped.dir
+com.qbittorrent.android.app-merged_res-33 C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\build\intermediates\merged_res\release
+com.qbittorrent.android.app-main-34 C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\main\res
+com.qbittorrent.android.app-release-35 C:\Users\xieyi\Documents\trae_projects\qb 安卓\qbittorrent-android\apk-project\app\src\release\res

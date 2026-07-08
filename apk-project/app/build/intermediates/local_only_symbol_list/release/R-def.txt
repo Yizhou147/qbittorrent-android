@@ -1,0 +1,37 @@
+R_DEF: Internal format may change without notice
+local
+anim layout_fall_down
+anim slide_up
+drawable card_bg
+drawable card_selected_bg
+id btnSavePath
+id btnSavePort
+id btnStart
+id btnSwitchUI
+id cardDefault
+id cardPath
+id cardPort
+id cardVuetorrent
+id cardWebUI
+id etDownloadPath
+id etPort
+id etWelcomePath
+id etWelcomePort
+id fabRefresh
+id loadingLayout
+id progressBar
+id tvCurrentUI
+id tvProjectUrl
+id tvStatus
+id tvVersion
+id tvWelcomeTitle
+id webView
+layout activity_main
+layout activity_settings
+layout activity_welcome
+mipmap ic_launcher
+string app_name
+style CardStyle
+style SettingLabel
+style Theme.QBittorrent
+xml network_security_config
