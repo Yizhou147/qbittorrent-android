@@ -11,8 +11,6 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    permissions:
-      contents: write
 
     steps:
       - name: Checkout
@@ -171,12 +169,3 @@ jobs:
           name: qbittorrent-android-${{ steps.version.outputs.version }}
           path: qbittorrent-android-${{ steps.version.outputs.version }}.apk
           retention-days: 90
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: qbittorrent-android-${{ steps.version.outputs.version }}.apk
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
