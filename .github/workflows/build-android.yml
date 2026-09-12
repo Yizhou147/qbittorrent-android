@@ -95,7 +95,8 @@ jobs:
               echo "qt_kind=qt6"                  >> $GITHUB_OUTPUT
               echo "qt_version=$QT6_VERSION"      >> $GITHUB_OUTPUT
               echo "cxx_standard=20"              >> $GITHUB_OUTPUT
-              echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
+              # Qt6 rcc 默认 zstd 压缩, Android 预编译 QtCore 缺 qt_resourceFeatureZstd 符号
+              echo "extra_flags=-DSTACKTRACE=OFF -DCMAKE_AUTORCC_OPTIONS=--no-zstd" >> $GITHUB_OUTPUT
               echo "extra_lt_flags="              >> $GITHUB_OUTPUT
               echo "vuetorrent_url="              >> $GITHUB_OUTPUT
               ;;
