@@ -1,0 +1,214 @@
+name: Tests
+
+# 与构建工作流 (build-android.yml) 分开的自动化测试:
+#   1. patch-check:   对各版本 vanilla 源码试打补丁并断言关键标记
+#   2. unit-tests:    JVM 单元测试 (./gradlew test)
+#   3. emulator-smoke: 构建工作流完成后, 在 Android 模拟器安装 APK,
+#      轮询 WebUI 端口并校验 qBittorrent 版本 (端到端冒烟测试)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_run:
+    workflows: ["Build qBittorrent Android APK"]
+    types: [completed]
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  patch-check:
+    name: Patch check (qBittorrent ${{ matrix.version }})
+    if: github.event_name != 'workflow_run'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - version: '4.3.9'
+            qbt_ref: release-4.3.9
+          - version: '4.6.7'
+            qbt_ref: release-4.6.7
+          - version: '5.2.3'
+            qbt_ref: release-5.2.3
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download vanilla source
+        run: |
+          mkdir -p /tmp/src
+          curl -L --retry 3 --connect-timeout 60 \
+            -o /tmp/src/qbittorrent.tar.gz \
+            "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/${{ matrix.qbt_ref }}.tar.gz"
+          mkdir -p /tmp/src/qbittorrent
+          tar xzf /tmp/src/qbittorrent.tar.gz -C /tmp/src/qbittorrent --strip-components=1
+
+      - name: Apply patches
+        run: bash ci/apply-patches.sh "${{ matrix.version }}" /tmp/src/qbittorrent
+
+      - name: Verify patch markers
+        run: |
+          cd /tmp/src/qbittorrent
+          echo "=== 共享库化 + JNI 桥接 ==="
+          grep -q "add_library(qbt_app SHARED)" src/app/CMakeLists.txt
+          grep -q "android_jni_bridge.cpp" src/app/CMakeLists.txt
+          test -f src/app/android_jni_bridge.cpp
+          echo "=== JNI 桥接入口符号 ==="
+          grep -q "Java_com_qbittorrent_android_QBittorrentService_nativeMain" src/app/android_jni_bridge.cpp
+          echo "=== LinguistTools 可选化 ==="
+          ! grep -qE "REQUIRED COMPONENTS .*LinguistTools" cmake/Modules/CheckPackages.cmake src/CMakeLists.txt 2>/dev/null
+          grep -q "if (TARGET Qt::lupdate)" src/app/CMakeLists.txt
+          echo "=== 翻译 qrc 预编译分支 ==="
+          grep -q "webui_translations.qrc" src/app/CMakeLists.txt
+          if [ "${{ matrix.version }}" = "5.2.3" ]; then
+            echo "=== 5.2.3: rcc 禁用 zstd ==="
+            grep -q -- "--no-zstd" cmake/Modules/CommonConfig.cmake
+          fi
+          echo "OK: ${{ matrix.version }} 补丁校验通过"
+
+  unit-tests:
+    name: JVM unit tests
+    if: github.event_name != 'workflow_run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Run unit tests
+        run: |
+          cd apk-project
+          chmod +x gradlew
+          ./gradlew testReleaseUnitTest --stacktrace
+
+      - name: Upload test reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: apk-project/app/build/reports/tests/
+          retention-days: 14
+
+  emulator-smoke:
+    name: Emulator smoke (qBittorrent ${{ matrix.version }})
+    # 仅在构建工作流成功完成后触发 (需要其 APK 产物)
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    permissions:
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # 4.6.7 是长期基线; 5.2.3 覆盖 Qt6 运行时; 4.3.9 覆盖最老版本
+        include:
+          - version: '4.6.7'
+          - version: '5.2.3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # 模拟器上的 ARM 指令翻译较慢且环境不可控, 暂不作为阻塞门禁
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download APK artifact from build workflow
+        run: |
+          RUN_ID=${{ github.event.workflow_run.id }}
+          gh run download "$RUN_ID" -R "${{ github.repository }}" \
+            -n "qbittorrent-android-qb${{ matrix.version }}" -D apk
+          ls -lh apk/
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install emulator and system image
+        run: |
+          sdkmanager --install "platform-tools" "emulator" "system-images;android-30;google_apis;x86_64" > /dev/null
+          echo "y" | sdkmanager --licenses > /dev/null || true
+
+      - name: Start emulator
+        run: |
+          echo no | avdmanager create avd -n qbt-test \
+            -k "system-images;android-30;google_apis;x86_64" -d pixel --force
+          ${ANDROID_HOME}/emulator/emulator -avd qbt-test \
+            -no-window -no-audio -no-boot-anim -no-snapshot \
+            -gpu swiftshader_indirect -accel on \
+            -memory 3072 -cores 2 &
+          adb wait-for-device
+          echo "Waiting for boot..."
+          timeout 600 bash -c 'while [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" != "1" ]; do sleep 5; done'
+          echo "Emulator booted"
+
+      - name: Install APK and start app
+        run: |
+          adb install -r apk/*.apk
+          # 预授权存储权限, 避免 MainActivity 启动时被系统对话框/设置页打断
+          adb shell pm grant com.qbittorrent.android android.permission.WRITE_EXTERNAL_STORAGE || true
+          adb shell pm grant com.qbittorrent.android android.permission.READ_EXTERNAL_STORAGE || true
+          adb forward tcp:18080 tcp:8080
+          adb shell am start -W -n com.qbittorrent.android/.MainActivity
+          # 应用初始化需要 10-120 秒 (模拟器上 ARM 翻译更慢)
+          sleep 15
+
+      - name: Poll WebUI and verify qBittorrent version
+        run: |
+          EXPECTED="${{ matrix.version }}"
+          OK=0
+          for i in $(seq 1 90); do
+            CODE=$(curl -s -o /tmp/version.out -w '%{http_code}' --max-time 5 \
+              http://localhost:18080/api/v2/app/version || echo 000)
+            if [ "$CODE" = "200" ]; then
+              OK=1
+              break
+            fi
+            echo "attempt $i: HTTP $CODE"
+            sleep 10
+          done
+          if [ "$OK" != "1" ]; then
+            echo "=== WebUI 未在时限内就绪 ==="
+            adb shell "logcat -d | tail -100" || true
+            exit 1
+          fi
+          VERSION=$(cat /tmp/version.out)
+          echo "WebUI 就绪, qBittorrent version: $VERSION"
+          if [[ "$VERSION" != *"$EXPECTED"* ]]; then
+            echo "ERROR: 期望版本 $EXPECTED, 实际 $VERSION"
+            exit 1
+          fi
+
+      - name: Collect logs on failure
+        if: failure()
+        run: |
+          adb shell "logcat -d" > logcat.txt || true
+          adb shell "cat /data/data/com.qbittorrent.android/files/*.txt" >> logcat.txt || true
+          tail -300 logcat.txt
+
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-logs-qb${{ matrix.version }}
+          path: logcat.txt
+          retention-days: 14
