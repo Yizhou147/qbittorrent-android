@@ -74,6 +74,8 @@ jobs:
               echo "qt_version=$QT5_VERSION"      >> $GITHUB_OUTPUT
               echo "cxx_standard=17"              >> $GITHUB_OUTPUT
               echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
+              # 新版 clang 将 narrowing 聚合初始化视为错误，1.2.x 源码有多处
+              echo "extra_lt_flags=-Wno-error=c++11-narrowing-const-ref -Wno-error=c++11-narrowing" >> $GITHUB_OUTPUT
               # VueTorrent v1.0+ 需要 qBittorrent >= 4.4, 4.3.x 用 v0.13.0
               echo "vuetorrent_url=https://github.com/WDaan/VueTorrent/releases/download/v0.13.0/vuetorrent.zip" >> $GITHUB_OUTPUT
               ;;
@@ -84,6 +86,7 @@ jobs:
               echo "qt_version=$QT5_VERSION" >> $GITHUB_OUTPUT
               echo "cxx_standard=17"         >> $GITHUB_OUTPUT
               echo "extra_flags="            >> $GITHUB_OUTPUT
+              echo "extra_lt_flags="         >> $GITHUB_OUTPUT
               echo "vuetorrent_url="         >> $GITHUB_OUTPUT
               ;;
             5.2.3)
@@ -93,6 +96,7 @@ jobs:
               echo "qt_version=$QT6_VERSION"      >> $GITHUB_OUTPUT
               echo "cxx_standard=20"              >> $GITHUB_OUTPUT
               echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
+              echo "extra_lt_flags="              >> $GITHUB_OUTPUT
               echo "vuetorrent_url="              >> $GITHUB_OUTPUT
               ;;
             *)
@@ -138,11 +142,12 @@ jobs:
             -o docker-sources/qbittorrent.tar.gz \
             "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/${{ steps.params.outputs.qbt_ref }}.tar.gz"
 
-          # Download libtorrent source
-          echo "Downloading libtorrent ${{ steps.params.outputs.lt_ref }}..."
-          curl -L --retry 3 --connect-timeout 60 \
-            -o docker-sources/libtorrent.tar.gz \
-            "https://github.com/arvidn/libtorrent/archive/refs/tags/${{ steps.params.outputs.lt_ref }}.tar.gz"
+          # libtorrent 必须用 git clone: release tarball 不含 deps/try_signal 等
+          # git 子模块 (GitHub 自动生成的 archive 不带子模块)
+          echo "Cloning libtorrent ${{ steps.params.outputs.lt_ref }}..."
+          git clone --depth 1 --branch ${{ steps.params.outputs.lt_ref }} \
+            --recursive --shallow-submodules \
+            https://github.com/arvidn/libtorrent docker-sources/libtorrent
 
           # Download VueTorrent when the variant needs a specific version
           if [ -n "${{ steps.params.outputs.vuetorrent_url }}" ]; then
@@ -167,8 +172,7 @@ jobs:
 
       - name: Prepare source directories
         run: |
-          mkdir -p docker-sources/libtorrent docker-sources/qbittorrent
-          tar xzf docker-sources/libtorrent.tar.gz -C docker-sources/libtorrent --strip-components=1
+          mkdir -p docker-sources/qbittorrent
           tar xzf docker-sources/qbittorrent.tar.gz -C docker-sources/qbittorrent --strip-components=1
 
           # Android 移植补丁: 共享库化 + JNI 桥接 + LinguistTools 可选化 (+ 线程修复)
@@ -186,6 +190,7 @@ jobs:
             --build-arg QT_VERSION=${{ steps.params.outputs.qt_version }} \
             --build-arg CXX_STANDARD=${{ steps.params.outputs.cxx_standard }} \
             --build-arg EXTRA_CMAKE_FLAGS="${{ steps.params.outputs.extra_flags }}" \
+            --build-arg EXTRA_LT_CXXFLAGS="${{ steps.params.outputs.extra_lt_flags }}" \
             .
 
       - name: Extract build artifacts
