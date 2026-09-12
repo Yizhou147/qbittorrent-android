@@ -72,17 +72,12 @@ public class WelcomeActivity extends AppCompatActivity {
             return;
         }
 
-        int port;
-        try {
-            port = Integer.parseInt(portStr);
-            if (port < 1024 || port > 65535) {
-                Toast.makeText(this, "端口范围: 1024-65535", Toast.LENGTH_SHORT).show();
-                return;
-            }
-        } catch (NumberFormatException e) {
-            Toast.makeText(this, "无效端口号", Toast.LENGTH_SHORT).show();
+        Integer parsed = QbtConfig.parsePort(portStr);
+        if (parsed == null) {
+            Toast.makeText(this, "无效端口号 (范围 1024-65535)", Toast.LENGTH_SHORT).show();
             return;
         }
+        int port = parsed;
 
         if (path.isEmpty()) {
             Toast.makeText(this, "请输入下载路径", Toast.LENGTH_SHORT).show();

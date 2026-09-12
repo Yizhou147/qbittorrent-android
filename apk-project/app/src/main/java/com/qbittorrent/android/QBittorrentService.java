@@ -185,116 +185,6 @@ public class QBittorrentService extends Service {
         }
     }
 
-    /** 写入默认配置（首次启动），已存在则跳过 */
-    private boolean writeDefaultConfig(File profileDir) {
-        File cfgDir = new File(profileDir, "qBittorrent/config");
-        cfgDir.mkdirs();
-        File cfgFile = new File(cfgDir, "qBittorrent.conf");
-        if (cfgFile.exists()) return false; // 已有配置
-        String downloadPath = readDownloadPath();
-        String cfg = "[BitTorrent]\n" +
-                "Session\\Port=59342\n" +
-                "Session\\QueueingSystemEnabled=false\n" +
-                "Session\\ValidateHTTPSTrackerCertificate=false\n\n" +
-                "[Meta]\n" +
-                "MigrationVersion=6\n\n" +
-                "[Preferences]\n" +
-                "Downloads\\SavePath=" + downloadPath + "\n" +
-                "WebUI\\LocalHostAuth=false\n" +
-                "WebUI\\Username=admin\n" +
-                "WebUI\\Port=" + readPort() + "\n" +
-                "General\\Locale=zh_CN\n";
-        try (FileWriter w = new FileWriter(cfgFile)) {
-            w.write(cfg);
-            return true;
-        } catch (IOException e) {
-            broadcastLog("WARN", "写入默认配置失败: " + e.getMessage());
-            return false;
-        }
-    }
-
-    /** 每次启动强制更新 config 中的关键设置 */
-    private void updateConfig(File profileDir) {
-        File cfgFile = new File(profileDir, "qBittorrent/config/qBittorrent.conf");
-        if (!cfgFile.exists()) return;
-
-        String altUIPath = new File(profileDir, "vuetorrent").getAbsolutePath();
-        String downloadPath = readDownloadPath();
-        int port = readPort();
-        boolean useAltUI = "vuetorrent".equals(readWebUIPref());
-
-        try {
-            // 读取全部内容
-            String content = readFile(cfgFile);
-            if (content == null) return;
-
-            // 替换 [BitTorrent] section 的值
-            content = replaceConfigValue(content, "Session\\Port=", "Session\\Port=59342");
-
-            // 替换 [Preferences] section 的值
-            content = replaceConfigValue(content, "WebUI\\Port=", "WebUI\\Port=" + port);
-            content = replaceConfigValue(content, "WebUI\\RootFolder=", "WebUI\\RootFolder=" + altUIPath);
-            content = replaceConfigValue(content, "WebUI\\AlternativeUIEnabled=", "WebUI\\AlternativeUIEnabled=" + (useAltUI ? "true" : "false"));
-            content = replaceConfigValue(content, "Downloads\\SavePath=", "Downloads\\SavePath=" + downloadPath);
-            content = replaceConfigValue(content, "General\\Locale=", "General\\Locale=zh_CN");
-
-            // 如果某个 key 不存在，在合适的位置追加
-            if (!content.contains("WebUI\\RootFolder=")) {
-                content = content.replace("WebUI\\Port=" + port, "WebUI\\Port=" + port + "\nWebUI\\RootFolder=" + altUIPath);
-            }
-            if (!content.contains("WebUI\\AlternativeUIEnabled=")) {
-                content = content.replace("WebUI\\RootFolder=" + altUIPath, "WebUI\\RootFolder=" + altUIPath + "\nWebUI\\AlternativeUIEnabled=" + (useAltUI ? "true" : "false"));
-            }
-            if (!content.contains("Downloads\\SavePath=")) {
-                content = "[Preferences]\nDownloads\\SavePath=" + downloadPath + "\n" + content;
-            }
-            if (!content.contains("General\\Locale=")) {
-                // General\Locale 必须在 [Preferences] section 下
-                if (content.contains("[Preferences]")) {
-                    content = content.replace("[Preferences]", "[Preferences]\nGeneral\\Locale=zh_CN");
-                } else {
-                    content = "[Preferences]\nGeneral\\Locale=zh_CN\n" + content;
-                }
-            }
-
-            // 写回文件
-            try (FileWriter w = new FileWriter(cfgFile)) {
-                w.write(content);
-            }
-            broadcastLog("INFO", "config 强制更新: port=" + port + " path=" + downloadPath + " altUI=" + useAltUI);
-        } catch (IOException e) {
-            broadcastLog("WARN", "更新 config 失败: " + e.getMessage());
-        }
-    }
-
-    /** 替换 config 中的某个 key=value */
-    private String replaceConfigValue(String content, String keyPrefix, String newLine) {
-        // keyPrefix 例如 "WebUI\Port=" (Java string: "WebUI\\Port=")
-        String[] lines = content.split("\n");
-        StringBuilder sb = new StringBuilder();
-        boolean replaced = false;
-        for (String line : lines) {
-            String trimmed = line.trim();
-            if (!replaced && trimmed.startsWith(keyPrefix)) {
-                sb.append(newLine).append("\n");
-                replaced = true;
-            } else {
-                sb.append(line).append("\n");
-            }
-        }
-        return sb.toString();
-    }
-
-    /** 读取配置文件内容 */
-    private String readFile(File f) {
-        StringBuilder sb = new StringBuilder();
-        try (BufferedReader r = new BufferedReader(new FileReader(f))) {
-            String line;
-            while ((line = r.readLine()) != null) sb.append(line).append("\n");
-        } catch (IOException ignored) {}
-        return sb.toString();
-    }
-
     /** 通过 API 配置下载路径（每次启动都执行） */
     private void configureSavePath() {
         String downloadPath = readDownloadPath();
@@ -378,7 +268,7 @@ public class QBittorrentService extends Service {
     /** WebUI 就绪后，首次启动时通过 API 设置密码并显示在日志中 */
     private void setInitialPassword(File profileDir) {
         File cfgFile = new File(profileDir, "qBittorrent/config/qBittorrent.conf");
-        String content = readFile(cfgFile);
+        String content = QbtConfig.readFile(cfgFile);
         if (content.contains("Password_PBKDF2")) {
             // 密码已设置，不重复显示
             broadcastLog("INFO", "WebUI 已有密码配置，跳过默认密码设置");
@@ -425,13 +315,21 @@ public class QBittorrentService extends Service {
             copyQbWeb(configDir);
 
             // 首次启动写入默认配置（含中文语言）
-            boolean firstRun = writeDefaultConfig(configDir);
+            boolean firstRun = QbtConfig.writeDefaultConfig(configDir, readPort(), readDownloadPath());
             if (firstRun) {
                 broadcastLog("INFO", "首次启动，已写入默认配置（中文界面）");
             }
 
             // 每次启动更新 config（端口/路径/AlternativeUI）
-            updateConfig(configDir);
+            String uiPref = readWebUIPref();
+            boolean cfgOk = QbtConfig.updateConfig(configDir, readPort(), readDownloadPath(),
+                    new File(configDir, "vuetorrent").getAbsolutePath(), "vuetorrent".equals(uiPref));
+            if (cfgOk) {
+                broadcastLog("INFO", "config 强制更新: port=" + readPort() + " path=" + readDownloadPath()
+                        + " altUI=" + uiPref);
+            } else {
+                broadcastLog("WARN", "更新 config 失败");
+            }
 
             // 复制系统 CA 证书到 app 目录（OpenSSL 需要）
             copyCACerts(configDir);
