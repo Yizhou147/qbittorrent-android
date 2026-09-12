@@ -17,6 +17,10 @@ on:
     tags:
       - 'v*'
 
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   prepare:
     name: Prepare build matrix
@@ -51,8 +55,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          lfs: true
 
       - name: Extract version
         id: version

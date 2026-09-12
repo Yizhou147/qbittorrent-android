@@ -66,68 +66,9 @@ public class QBittorrentService extends Service {
         LocalBroadcastManager.getInstance(this).sendBroadcast(logIntent);
     }
 
-    /** 运行测试二进制，返回 exitCode */
-    private int runTest(String libDir, String binaryPath, String... args) {
-        try {
-            String[] cmd = new String[1 + args.length];
-            cmd[0] = binaryPath;
-            System.arraycopy(args, 0, cmd, 1, args.length);
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.environment().put("LD_LIBRARY_PATH", libDir);
-            pb.environment().put("QT_PLUGIN_PATH", libDir);
-            pb.environment().put("HOME", new File(getFilesDir(), "config").getAbsolutePath());
-            pb.environment().put("TMPDIR", getCacheDir().getAbsolutePath());
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String output = readStream(p.getInputStream());
-            int exit = p.waitFor();
-            if (!output.isEmpty()) broadcastLog("INFO", "  output: " + output.trim());
-            return exit;
-        } catch (Exception e) {
-            broadcastLog("ERROR", "  exception: " + e.getMessage());
-            return -1;
-        }
-    }
-
-    /** 读取流的全部内容（阻塞直到流关闭） */
-    private String readStream(InputStream is) {
-        StringBuilder sb = new StringBuilder();
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                sb.append(line).append("\n");
-            }
-        } catch (IOException ignored) {}
-        return sb.toString();
-    }
-
-    /** 运行一条 shell 命令并返回 stdout+stderr */
-    private String runShell(String cmd) {
-        try {
-            ProcessBuilder pb = new ProcessBuilder("sh", "-c", cmd);
-            pb.environment().put("LD_LIBRARY_PATH", getNativeLibDir());
-            pb.redirectErrorStream(true);
-            Process p = pb.start();
-            String output = readStream(p.getInputStream());
-            p.waitFor();
-            return output.trim();
-        } catch (Exception e) {
-            return "ERROR: " + e.getMessage();
-        }
-    }
-
     private String getNativeLibDir() {
-        String apkPath = getPackageCodePath();
-        File appDir = new File(apkPath).getParentFile();
-        File libDir = new File(appDir, "lib/arm64");
-        if (!libDir.exists()) {
-            libDir = new File(appDir, "lib/arm64-v8a");
-        }
-        try {
-            return libDir.getCanonicalPath();
-        } catch (IOException e) {
-            return libDir.getAbsolutePath();
-        }
+        // 标准 API: 系统解压原生库的位置，避免对 APK 路径结构的猜测
+        return getApplicationInfo().nativeLibraryDir;
     }
 
     // JNI: call qBittorrent main() in-process (needed for Qt5 JNI initialization)
@@ -237,31 +178,6 @@ public class QBittorrentService extends Service {
             }
         } catch (IOException e) {
             broadcastLog("WARN", "解压 VueTorrent 失败: " + e.getMessage());
-        }
-    }
-
-    private void copyAssetDir(AssetManager am, String assetPath, File targetDir) throws IOException {
-        targetDir.mkdirs();
-        String[] list = am.list(assetPath);
-        if (list != null && list.length > 0) {
-            // 是目录，递归复制子项
-            for (String child : list) {
-                copyAssetDir(am, assetPath + "/" + child, new File(targetDir, child));
-            }
-        } else {
-            // list 为空：可能是文件，也可能是 list() 失败的目录
-            // 先尝试作为文件打开
-            try (InputStream is = am.open(assetPath)) {
-                try (FileOutputStream fos = new FileOutputStream(targetDir)) {
-                    byte[] buf = new byte[8192];
-                    int len;
-                    while ((len = is.read(buf)) > 0) fos.write(buf, 0, len);
-                }
-            } catch (IOException e) {
-                // 不是文件，可能是 list() 返回空的目录
-                // 尝试已知的子路径
-                broadcastLog("DEBUG", "asset 不是文件: " + assetPath + ", 尝试作为目录");
-            }
         }
     }
 
@@ -568,10 +484,6 @@ public class QBittorrentService extends Service {
 
             broadcastLog("INFO", "配置目录: " + configDir.getAbsolutePath());
             broadcastLog("INFO", "下载目录: " + downloadsDir.getAbsolutePath());
-
-            // Set environment variables for Qt5
-            System.setProperty("HOME", configDir.getAbsolutePath());
-            System.setProperty("TMPDIR", getCacheDir().getAbsolutePath());
 
             // Load Qt libraries first (their JNI_OnLoad sets the JavaVM pointer).
             // The library names differ between the Qt5 and Qt6 builds, so load

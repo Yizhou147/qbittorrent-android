@@ -11,7 +11,15 @@
   <img src="screenshot.jpg" width="100%" alt="qBittorrent Android Screenshot">
 </p>
 
-将 [qBittorrent](https://www.qbittorrent.org/) 4.6.7 移植到 Android 平台，通过 WebView 访问 WebUI 进行操作。
+将 [qBittorrent](https://www.qbittorrent.org/) 移植到 Android 平台，通过 WebView 访问 WebUI 进行操作。
+
+**支持三个 qBittorrent 版本**（CI 矩阵构建，任选）：
+
+| qBittorrent | libtorrent | Qt | C++ 标准 | VueTorrent |
+|---|---|---|---|---|
+| 4.3.9 | 1.2.20 | 5.15.2 | 17 | v0.13.0（v1.0+ 要求 qb ≥ 4.4） |
+| 4.6.7 | 2.0.10 | 5.15.2 | 17 | 最新 |
+| 5.2.3 | 2.0.14 | 6.6.3 | 20 | 最新 |
 
 不推荐进行PT下载，强行使用后果自负！
 
@@ -31,21 +39,22 @@
 
 ### 核心组件
 
-1. **Qt5 框架**（预编译 qtbase 5.15.2）
-   - 从 FAU 镜像下载预编译的 Android 版 qtbase
-   - 仅需编译头文件，无需从源码编译 Qt
+1. **Qt 框架**（预编译包，经 aqtinstall 安装）
+   - 4.3.9 / 4.6.7 使用 Qt 5.15.2 Android 版
+   - 5.2.3 使用 Qt 6.6.3 Android 版（qb 5.x 要求 Qt ≥ 6.6，交叉编译需 QT_HOST_PATH）
 
-2. **libtorrent**（版本 2.0.10）
-   - 交叉编译目标：`aarch64-linux-android24`
-   - 使用 C++17 标准，静态链接
+2. **libtorrent**
+   - qb 4.3.9 → libtorrent 1.2.20；qb 4.6.7 → 2.0.10；qb 5.2.3 → 2.0.14
+   - 必须用 `git clone --recursive` 获取源码（release tarball 缺 try_signal 子模块）
+   - 交叉编译目标 `arm64-v8a`，动态链接 `libc++_shared.so`
 
-3. **qBittorrent**（版本 4.6.7）
-   - 编译为共享库（libqbt.so）
-   - 通过 JNI 桥接在 Android 进程内运行
-   - 包含完整的 WebUI 翻译文件
+3. **qBittorrent**
+   - 编译为共享库（libqbt.so），通过 JNI 桥接在 Android 进程内运行
+   - 源码改自官方 release tag，补丁见 `ci/patches/<版本>/`
+   - 包含完整的 WebUI 翻译文件（宿主机 lrelease 预编译 .qm + qrc）
 
 4. **OpenSSL 3.3.2** + **Boost 1.86.0**
-   - 静态编译，嵌入最终产物
+   - 静态编译，嵌入 libtorrent/libqbt，无需打包 libssl.so/libcrypto.so
 
 ### 关键技术问题及解决方案
 
@@ -57,12 +66,13 @@
 - 禁用 `androidjnimain.cpp` 中的 `JNI_OnLoad`
 - 在 `qjnihelpers.cpp` 中添加简单的 `JNI_OnLoad`，仅设置 JavaVM 指针
 - 通过 JNI 桥接在 Android 进程内调用 qBittorrent main()
+- Java 层动态扫描加载 `libQt5*`/`libQt6*`，同一份代码兼容两种 Qt
 
 #### 2. TLS 对齐问题（Android 16/API 36）
 
 **问题**：NDK r27 用 API 24 编译的二进制 TLS 对齐只有 8 字节，Android 16 linker 要求至少 64 字节。
 
-**解决方案**：使用 `--target=aarch64-linux-android35` 编译，自动获得 64 字节 TLS 对齐。
+**解决方案**：libtorrent 和 qBittorrent 用 `ANDROID_PLATFORM=android-35` 编译，自动获得 64 字节 TLS 对齐。
 
 #### 3. C++ 运行时不匹配
 
@@ -75,18 +85,31 @@
 **问题**：LinguistTools 不可用导致翻译文件未编译。
 
 **解决方案**：
-- 在 Docker 容器中安装 `qttools5-dev-tools`（提供 `lrelease`）
+- 容器内安装 `qttools5-dev-tools` / `qt6-l10n-tools`（提供宿主机 `lrelease`）
 - 在 cmake configure 之前编译所有 `.ts` 文件为 `.qm` 文件
-- 生成 QRC 文件，cmake 自动包含翻译资源
+- 生成 QRC 文件，cmake 自动包含翻译资源（补丁将 LinguistTools 变为可选依赖）
+
+#### 5. Qt6 资源 zstd 压缩（qb 5.x）
+
+**问题**：Qt 6 的 rcc 默认用 zstd 压缩资源，生成的代码引用 `qt_resourceFeatureZstd` 符号，链接 Android 预编译 QtCore 时报 undefined symbol。
+
+**解决方案**：补丁在 `CommonConfig.cmake` 给 `CMAKE_AUTORCC_OPTIONS` 追加 `--no-zstd`，回退 zlib 压缩。
+
+#### 6. 旧版 qb 与新工具链的兼容
+
+- **qb 4.3.9**：新 clang 将 narrowing 聚合初始化视为错误，libtorrent 1.2.20 编译参数追加 `-Wno-error=c++11-narrowing*`；`execinfo.h` 在 Android 不可用，关闭 STACKTRACE
+- **qb 5.2.3**：使用 boost::stacktrace（未编译该模块），关闭 STACKTRACE
 
 ## 构建指南
 
-### 方式一：GitHub Actions 自动构建（推荐）
+### 方式一：GitHub Actions 自动构建（推荐，唯一支持的 CI 方式）
 
-1. Fork 本仓库
-2. 在 Actions 页面手动触发 `Build qBittorrent Android APK` 工作流
-3. 等待构建完成（约 10-15 分钟）
-4. 在 Artifacts 页面下载 APK
+1. 打开仓库 Actions 页面，选择 `Build qBittorrent Android APK`
+2. 点击 `Run workflow`，选择要构建的 qBittorrent 版本（`all` = 三个版本并行）
+3. 等待构建完成（约 40-60 分钟）
+4. 在 Artifacts 页面下载对应 APK（`qbittorrent-android-qb<版本>`）
+
+推送 `v*` tag 会自动构建全部三个版本。
 
 ### 方式二：本地 Docker 构建
 
@@ -97,19 +120,26 @@
 
 #### 准备源码
 
-将以下文件放入 `docker-sources/` 目录：
+```bash
+# 下载源码 + 应用移植补丁（同时会下载 OpenSSL/Boost）
+./scripts/prepare-sources.sh 5.2.3        # 或 4.3.9 / 4.6.7
+```
 
-| 文件 | 说明 |
-|------|------|
-| `docker-sources-libtorrent.tar.gz` | libtorrent 源码（已在仓库中） |
-| `docker-sources-qbittorrent.tar.gz` | qBittorrent 源码（已在仓库中） |
-
-其余依赖（NDK、Qt5、OpenSSL、Boost）会在构建时自动下载，也可手动下载后放入 `docker-sources/` 加速构建。
+SDK/NDK 的三个 zip（platform-34 / build-tools 34 / NDK r27b）如未提前放入 `docker-sources/`，
+请从 `dl.google.com/android/repository/` 手动下载，文件名见 `Dockerfile` 头部注释。
 
 #### 一键构建
 
 ```bash
-docker build -t qbittorrent-android .
+# qb 5.2.3 (Qt6)
+docker build -t qbittorrent-android \
+  --build-arg QT_KIND=qt6 --build-arg QT_VERSION=6.6.3 \
+  --build-arg CXX_STANDARD=20 --build-arg EXTRA_CMAKE_FLAGS=-DSTACKTRACE=OFF .
+
+# qb 4.3.9 / 4.6.7 (Qt5)
+docker build -t qbittorrent-android \
+  --build-arg QT_KIND=qt5 --build-arg QT_VERSION=5.15.2 \
+  --build-arg CXX_STANDARD=17 .
 ```
 
 #### 提取产物
@@ -117,7 +147,7 @@ docker build -t qbittorrent-android .
 ```bash
 mkdir -p build-output
 docker create --name qb-out qbittorrent-android
-docker cp qb-out:/opt/qbt-output/lib/. ./build-output/
+docker cp qb-out:/output/lib/. ./build-output/
 docker rm qb-out
 ```
 
@@ -126,8 +156,7 @@ docker rm qb-out
 ```bash
 # 复制原生库到 jniLibs
 cp build-output/libqbt_arm64-v8a.so apk-project/app/src/main/jniLibs/arm64-v8a/libqbt.so
-cp build-output/libtorrent-rasterbar.so apk-project/app/src/main/jniLibs/arm64-v8a/
-cp build-output/libc++_shared.so apk-project/app/src/main/jniLibs/arm64-v8a/
+cp build-output/*.so apk-project/app/src/main/jniLibs/arm64-v8a/
 
 # 构建 APK
 cd apk-project
@@ -168,21 +197,29 @@ APK 输出：`apk-project/app/build/outputs/apk/release/app-release.apk`（已�
 
 ```
 qbittorrent-android/
-├── Dockerfile                    # Docker 构建环境（一步完成所有编译）
-├── docker-sources/               # 源码和补丁
-│   ├── docker-sources-libtorrent.tar.gz  # libtorrent 源码
-│   ├── docker-sources-qbittorrent.tar.gz # qBittorrent 源码
-│   └── patch-cmake.py            # CMakeLists.txt 补丁脚本
+├── Dockerfile                    # Docker 构建环境（参数化: QT_KIND/QT_VERSION/CXX_STANDARD）
+├── ci/
+│   ├── apply-patches.sh          # 给 vanilla qbittorrent 源码应用 Android 移植补丁
+│   └── patches/
+│       ├── common/               # JNI 桥接（编入 libqbt.so）
+│       ├── 4.3.9/                # 各版本补丁集
+│       ├── 4.6.7/
+│       └── 5.2.3/
+├── scripts/
+│   ├── prepare-sources.sh        # 本地构建: 下载源码并打补丁
+│   └── ...                       # 历史构建/调试脚本
+├── docker-sources/               # 构建前准备的源码（脚本生成，不入库）
 ├── apk-project/                  # Android 项目
 │   ├── app/
 │   │   ├── src/main/
 │   │   │   ├── java/             # Java 源码
-│   │   │   ├── jniLibs/          # 原生库
+│   │   │   ├── assets/           # VueTorrent zip
+│   │   │   ├── jniLibs/          # 原生库（CI 构建时刷新）
 │   │   │   └── res/              # 资源文件
 │   │   └── build.gradle
 │   └── build.gradle
 └── .github/workflows/
-    └── build-android.yml         # CI/CD 工作流
+    └── build-android.yml         # CI/CD 工作流（矩阵构建三个版本）
 ```
 
 ## 已知问题
@@ -193,6 +230,15 @@ qbittorrent-android/
 4. **架构限制**：仅支持 ARM64 设备
 
 ## 版本历史
+
+### v1.2 (2026-09-13)
+
+- 支持 qBittorrent 4.3.9 / 4.6.7 / 5.2.3 三版本矩阵构建
+- 5.2.3 变体升级到 Qt 6.6.3 + C++20
+- libtorrent/qBittorrent 改用 API 35 target 编译（修复 Android 16 TLS 对齐问题）
+- 修复 CI 构建产物缺少 Qt 库的问题
+- Java 层动态加载 Qt5/Qt6 库；清理死代码；改用 nativeLibraryDir 标准 API
+- CI 源码改从官方 release 下载 + 统一补丁集，移除 Git LFS 源码包
 
 ### v1.1 (2026-07-08)
 
