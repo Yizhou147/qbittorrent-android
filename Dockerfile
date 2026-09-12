@@ -253,9 +253,14 @@ RUN QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
     for m in Core Network Sql Xml; do \
         cp ${QT_ROOT}/lib/libQt[56]${m}_arm64-v8a.so ${PREFIX}/lib/; \
     done && \
-    if [ -f "${QT_ROOT}/plugins/sqldrivers/libqsqlite_arm64-v8a.so" ]; then \
-        cp ${QT_ROOT}/plugins/sqldrivers/libqsqlite_arm64-v8a.so ${PREFIX}/lib/; \
-    fi && \
+    # qsqlite 插件: qb 4.6.7/5.2.3 的恢复数据存在 SQLite 里, 运行时必需。
+    # Qt5/Qt6 预编译包里文件名不同, 统一拷成扁平化命名 (与 v1.1 一致)
+    for f in libplugins_sqldrivers_qsqlite_arm64-v8a.so libqsqlite_arm64-v8a.so libqsqlite.so; do \
+        if [ -f "${QT_ROOT}/plugins/sqldrivers/$f" ]; then \
+            cp "${QT_ROOT}/plugins/sqldrivers/$f" ${PREFIX}/lib/libplugins_sqldrivers_qsqlite_arm64-v8a.so; \
+            break; \
+        fi; \
+    done; \
     mkdir -p /output/lib && \
     cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null; \
     cp ${PREFIX}/lib/*.so /output/lib/ && \
