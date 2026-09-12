@@ -18,6 +18,8 @@ ARG QT_VERSION=5.15.2
 ARG CXX_STANDARD=17
 ARG BOOST_TARBALL=boost_1_86_0.tar.gz
 ARG EXTRA_CMAKE_FLAGS=""
+# libtorrent 编译追加的 C++ flags (如降级 narrowing 错误为警告)
+ARG EXTRA_LT_CXXFLAGS=""
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME=/opt/android-sdk
@@ -148,6 +150,7 @@ RUN export API=35 && \
         -DCMAKE_INSTALL_PREFIX=${PREFIX} \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_STANDARD=${CXX_STANDARD} \
+        -DCMAKE_CXX_FLAGS="${EXTRA_LT_CXXFLAGS}" \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DBoost_INCLUDE_DIR=${PREFIX}/include \
         -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
