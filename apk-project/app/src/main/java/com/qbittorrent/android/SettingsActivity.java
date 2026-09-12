@@ -15,9 +15,6 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
 
 public class SettingsActivity extends AppCompatActivity {
 
@@ -107,26 +104,14 @@ public class SettingsActivity extends AppCompatActivity {
                     // 4. 等 API 切换完成后再杀进程重启
                     int port = prefs.getInt("webui_port", 8080);
                     new Thread(() -> {
+                        String json = useAlt
+                                ? "{\"alternative_webui_enabled\":true,\"alternative_webui_path\":\"" + altPath.replace("\\", "\\\\") + "\"}"
+                                : "{\"alternative_webui_enabled\":false}";
+                        QbtApi.setPreferences(port, json);
                         try {
-                            String json = useAlt
-                                    ? "{\"alternative_webui_enabled\":true,\"alternative_webui_path\":\"" + altPath.replace("\\", "\\\\") + "\"}"
-                                    : "{\"alternative_webui_enabled\":false}";
-                            URL url = new URL("http://127.0.0.1:" + port + "/api/v2/app/setPreferences");
-                            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                            conn.setRequestMethod("POST");
-                            conn.setDoOutput(true);
-                            conn.setConnectTimeout(5000);
-                            conn.setReadTimeout(5000);
-                            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-                            String params = "json=" + URLEncoder.encode(json, "UTF-8");
-                            try (OutputStream os = conn.getOutputStream()) {
-                                os.write(params.getBytes("UTF-8"));
-                            }
-                            int code = conn.getResponseCode();
-                            conn.disconnect();
                             // 等待 qBittorrent 处理完配置变更
                             Thread.sleep(1000);
-                        } catch (Exception ignored) {}
+                        } catch (InterruptedException ignored) {}
 
                         // 5. API 完成后，杀进程重启
                         runOnUiThread(() -> {
@@ -174,31 +159,14 @@ public class SettingsActivity extends AppCompatActivity {
 
         final int newPort = port;
         new Thread(() -> {
-            try {
-                String json = "{\"web_ui_port\":" + newPort + "}";
-                URL url = new URL("http://127.0.0.1:" + oldPort + "/api/v2/app/setPreferences");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(3000);
-                conn.setReadTimeout(3000);
-                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-                String params = "json=" + URLEncoder.encode(json, "UTF-8");
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(params.getBytes("UTF-8"));
+            int code = QbtApi.setPreferences(oldPort, "{\"web_ui_port\":" + newPort + "}");
+            runOnUiThread(() -> {
+                if (code == 200) {
+                    Toast.makeText(this, "端口已改为 " + newPort + "（重启后生效）", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "保存失败 HTTP " + code, Toast.LENGTH_SHORT).show();
                 }
-                int code = conn.getResponseCode();
-                conn.disconnect();
-                runOnUiThread(() -> {
-                    if (code == 200) {
-                        Toast.makeText(this, "端口已改为 " + newPort + "（重启后生效）", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(this, "保存失败 HTTP " + code, Toast.LENGTH_SHORT).show();
-                    }
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> Toast.makeText(this, "保存失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-            }
+            });
         }).start();
     }
 
@@ -222,31 +190,14 @@ public class SettingsActivity extends AppCompatActivity {
         int port = prefs.getInt("webui_port", 8080);
         // 通过 API 设置
         new Thread(() -> {
-            try {
-                String json = "{\"save_path\":\"" + path.replace("\\", "\\\\") + "\"}";
-                URL url = new URL("http://127.0.0.1:" + port + "/api/v2/app/setPreferences");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setDoOutput(true);
-                conn.setConnectTimeout(3000);
-                conn.setReadTimeout(3000);
-                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-                String params = "json=" + URLEncoder.encode(json, "UTF-8");
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(params.getBytes("UTF-8"));
+            int code = QbtApi.setPreferences(port, "{\"save_path\":\"" + path.replace("\\", "\\\\") + "\"}");
+            runOnUiThread(() -> {
+                if (code == 200) {
+                    Toast.makeText(this, "下载路径已更新", Toast.LENGTH_SHORT).show();
+                } else {
+                    Toast.makeText(this, "保存失败 HTTP " + code, Toast.LENGTH_SHORT).show();
                 }
-                int code = conn.getResponseCode();
-                conn.disconnect();
-                runOnUiThread(() -> {
-                    if (code == 200) {
-                        Toast.makeText(this, "下载路径已更新", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(this, "保存失败 HTTP " + code, Toast.LENGTH_SHORT).show();
-                    }
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> Toast.makeText(this, "保存失败: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-            }
+            });
         }).start();
     }
 

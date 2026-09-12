@@ -11,6 +11,8 @@
 #include <jni.h>
 #include <cstring>
 #include <cstdlib>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 // Set OpenSSL CA certificate paths as early as possible (when .so is loaded)
 // This ensures the env vars are set before any SSL context is created
@@ -62,9 +64,17 @@ Java_com_qbittorrent_android_QBittorrentService_nativeMain(
             break;
         }
     }
-    // TMPDIR defaults to /data/local/tmp if not set
+    // TMPDIR must be app-writable: /data/local/tmp is not accessible to apps
+    // on modern Android, so prefer <profile>/tmp
     if (!getenv("TMPDIR")) {
-        setenv("TMPDIR", "/data/local/tmp", 1);
+        if (profileDir[0]) {
+            char tmpDir[600] = {0};
+            snprintf(tmpDir, sizeof(tmpDir), "%s/tmp", profileDir);
+            mkdir(tmpDir, 0700);
+            setenv("TMPDIR", tmpDir, 1);
+        } else {
+            setenv("TMPDIR", "/data/local/tmp", 1);
+        }
     }
 
     // Point OpenSSL to CA certificates

@@ -36,11 +36,7 @@ import java.util.Arrays;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.Socket;
-import java.net.URL;
-import java.net.URLEncoder;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -267,29 +263,15 @@ public class MainActivity extends AppCompatActivity {
         String uiType = prefs.getString("webui_type", "vuetorrent");
         boolean useAlt = "vuetorrent".equals(uiType);
 
-        try {
-            String altPath = new File(getFilesDir(), "config/vuetorrent").getAbsolutePath();
-            String json;
-            if (useAlt) {
-                json = "{\"alternative_webui_enabled\":true,\"alternative_webui_path\":\"" +
-                        altPath.replace("\\", "\\\\") + "\"}";
-            } else {
-                json = "{\"alternative_webui_enabled\":false}";
-            }
-            URL url = new URL("http://127.0.0.1:" + port + "/api/v2/app/setPreferences");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setConnectTimeout(3000);
-            conn.setReadTimeout(3000);
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            String params = "json=" + URLEncoder.encode(json, "UTF-8");
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(params.getBytes("UTF-8"));
-            }
-            int code = conn.getResponseCode();
-            conn.disconnect();
-        } catch (Exception ignored) {}
+        String altPath = new File(getFilesDir(), "config/vuetorrent").getAbsolutePath();
+        String json;
+        if (useAlt) {
+            json = "{\"alternative_webui_enabled\":true,\"alternative_webui_path\":\"" +
+                    altPath.replace("\\", "\\\\") + "\"}";
+        } else {
+            json = "{\"alternative_webui_enabled\":false}";
+        }
+        QbtApi.setPreferences(port, json);
     }
 
     private void reloadWebUI() {

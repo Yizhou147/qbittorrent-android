@@ -23,11 +23,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.Socket;
-import java.net.URL;
-import java.net.URLEncoder;
 
 public class QBittorrentService extends Service {
 
@@ -39,6 +35,7 @@ public class QBittorrentService extends Service {
     private static final int NOTIFICATION_ID = 1;
 
     private static volatile boolean nativeMainRunning = false;
+    private static final Object START_LOCK = new Object();
 
     @Override
     public void onCreate() {
@@ -50,7 +47,14 @@ public class QBittorrentService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         Notification notification = buildNotification();
         startForeground(NOTIFICATION_ID, notification);
-        if (!nativeMainRunning) {
+        boolean shouldStart = false;
+        synchronized (START_LOCK) {
+            if (!nativeMainRunning) {
+                nativeMainRunning = true;
+                shouldStart = true;
+            }
+        }
+        if (shouldStart) {
             new Thread(this::startQBittorrent).start();
         } else {
             broadcastLog("INFO", "qBittorrent 已在运行中");
@@ -295,28 +299,12 @@ public class QBittorrentService extends Service {
     private void configureSavePath() {
         String downloadPath = readDownloadPath();
         int port = readPort();
-        try {
-            String json = "{\"save_path\":\"" + downloadPath.replace("\\", "\\\\") + "\"}";
-            URL url = new URL("http://127.0.0.1:" + port + "/api/v2/app/setPreferences");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setConnectTimeout(3000);
-            conn.setReadTimeout(3000);
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            String params = "json=" + URLEncoder.encode(json, "UTF-8");
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(params.getBytes("UTF-8"));
-            }
-            int code = conn.getResponseCode();
-            conn.disconnect();
-            if (code == 200) {
-                broadcastLog("INFO", "已设置下载路径: " + downloadPath);
-            } else {
-                broadcastLog("WARN", "设置下载路径失败，HTTP " + code);
-            }
-        } catch (Exception e) {
-            broadcastLog("WARN", "设置下载路径失败: " + e.getMessage());
+        String json = "{\"save_path\":\"" + downloadPath.replace("\\", "\\\\") + "\"}";
+        int code = QbtApi.setPreferences(port, json);
+        if (code == 200) {
+            broadcastLog("INFO", "已设置下载路径: " + downloadPath);
+        } else {
+            broadcastLog("WARN", "设置下载路径失败，HTTP " + code);
         }
     }
 
@@ -334,30 +322,13 @@ public class QBittorrentService extends Service {
             broadcastLog("WARN", "VueTorrent 目录不存在，跳过配置");
             return;
         }
-        int port = readPort();
-        try {
-            URL url = new URL("http://127.0.0.1:" + port + "/api/v2/app/setPreferences");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setConnectTimeout(3000);
-            conn.setReadTimeout(3000);
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            String json = "{\"alternative_webui_enabled\":true,\"alternative_webui_path\":\"" +
-                    altUIPath.getAbsolutePath().replace("\\", "\\\\") + "\"}";
-            String params = "json=" + URLEncoder.encode(json, "UTF-8");
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(params.getBytes("UTF-8"));
-            }
-            int code = conn.getResponseCode();
-            conn.disconnect();
-            if (code == 200) {
-                broadcastLog("INFO", "已配置 VueTorrent 为默认 WebUI");
-            } else {
-                broadcastLog("WARN", "配置 VueTorrent 失败，HTTP " + code);
-            }
-        } catch (Exception e) {
-            broadcastLog("WARN", "配置 VueTorrent 失败: " + e.getMessage());
+        String json = "{\"alternative_webui_enabled\":true,\"alternative_webui_path\":\"" +
+                altUIPath.getAbsolutePath().replace("\\", "\\\\") + "\"}";
+        int code = QbtApi.setPreferences(readPort(), json);
+        if (code == 200) {
+            broadcastLog("INFO", "已配置 VueTorrent 为默认 WebUI");
+        } else {
+            broadcastLog("WARN", "配置 VueTorrent 失败，HTTP " + code);
         }
     }
 
@@ -414,33 +385,16 @@ public class QBittorrentService extends Service {
             return;
         }
         // 首次启动：通过 API 设置默认密码
-        try {
-            URL url = new URL("http://127.0.0.1:" + readPort() + "/api/v2/app/setPreferences");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setConnectTimeout(3000);
-            conn.setReadTimeout(3000);
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-            String json = "{\"web_ui_password\":\"adminadmin\"}";
-            String params = "json=" + URLEncoder.encode(json, "UTF-8");
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(params.getBytes("UTF-8"));
-            }
-            int code = conn.getResponseCode();
-            conn.disconnect();
-            if (code == 200) {
-                broadcastLog("INFO", "========================================");
-                broadcastLog("INFO", "WebUI 默认密码已设置");
-                broadcastLog("INFO", "  用户名: admin");
-                broadcastLog("INFO", "  密码: adminadmin");
-                broadcastLog("INFO", "  (仅首次显示，后续启动不再提示)");
-                broadcastLog("INFO", "========================================");
-            } else {
-                broadcastLog("WARN", "设置密码失败，HTTP " + code);
-            }
-        } catch (Exception e) {
-            broadcastLog("WARN", "设置密码失败: " + e.getMessage());
+        int code = QbtApi.setPreferences(readPort(), "{\"web_ui_password\":\"adminadmin\"}");
+        if (code == 200) {
+            broadcastLog("INFO", "========================================");
+            broadcastLog("INFO", "WebUI 默认密码已设置");
+            broadcastLog("INFO", "  用户名: admin");
+            broadcastLog("INFO", "  密码: adminadmin");
+            broadcastLog("INFO", "  (仅首次显示，后续启动不再提示)");
+            broadcastLog("INFO", "========================================");
+        } else {
+            broadcastLog("WARN", "设置密码失败，HTTP " + code);
         }
     }
 
@@ -561,9 +515,11 @@ public class QBittorrentService extends Service {
             broadcastLog("INFO", "qBittorrent 启动线程已创建");
 
         } catch (UnsatisfiedLinkError e) {
+            nativeMainRunning = false;
             broadcastLog("ERROR", "加载库失败: " + e.getMessage());
             Log.e(TAG, "Failed to load library", e);
         } catch (Exception e) {
+            nativeMainRunning = false;
             broadcastLog("ERROR", "启动失败: " + e.getMessage());
             Log.e(TAG, "Failed to start qBittorrent", e);
         }
@@ -608,8 +564,9 @@ public class QBittorrentService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        nativeMainRunning = false;
-        broadcastLog("INFO", "服务已停止");
+        // 注意: native 层的 qBittorrent 线程无法在此安全终止, 进程内仍在运行,
+        // 因此 nativeMainRunning 保持 true, 避免重启服务时产生第二个实例
+        broadcastLog("INFO", "服务已停止 (qBittorrent 继续在进程内运行)");
     }
 
     @Override
