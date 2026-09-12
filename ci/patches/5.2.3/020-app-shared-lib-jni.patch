@@ -1,0 +1,122 @@
+--- a/src/app/CMakeLists.txt
++++ b/src/app/CMakeLists.txt
+@@ -1,36 +1,48 @@
+-file(GLOB QBT_TS_FILES "${qBittorrent_SOURCE_DIR}/src/lang/*.ts")
+-# Custom target to update .ts files and include new strings from source files
+-# Depends on Qt's LinguistTools
+-get_target_property(QT_LUPDATE_EXECUTABLE Qt::lupdate IMPORTED_LOCATION)
+-add_custom_target(qbt_update_translations
+-                    COMMAND ${QT_LUPDATE_EXECUTABLE} -extensions ui,c,c++,cc,cpp,cxx,ch,h,h++,hh,hpp,hxx
+-                                                     ${qBittorrent_SOURCE_DIR}
+-                                                     -ts ${QBT_TS_FILES}
+-                    WORKING_DIRECTORY "${qBittorrent_SOURCE_DIR}"
+-                    VERBATIM
+-                    COMMAND_EXPAND_LISTS)
+-
+-# Generate and configure translation files
+-# -----------------------------------------------------------------------------
+-# -----------------------------------------------------------------------------
+-# Based on https://gist.github.com/giraldeau/546ba5512a74dfe9d8ea0862d66db412
+-set_source_files_properties(${QBT_TS_FILES} PROPERTIES OUTPUT_LOCATION "${qBittorrent_BINARY_DIR}/src/lang")
+-qt_add_translation(QBT_QM_FILES ${QBT_TS_FILES} OPTIONS -removeidentical -silent)
+-configure_file("${qBittorrent_SOURCE_DIR}/src/lang/lang.qrc" "${qBittorrent_BINARY_DIR}/src/lang/lang.qrc" COPYONLY)
+-
+-if (WEBUI)
+-    file(GLOB QBT_WEBUI_TS_FILES "${qBittorrent_SOURCE_DIR}/src/webui/www/translations/*.ts")
+-    set_source_files_properties(${QBT_WEBUI_TS_FILES}
+-        PROPERTIES OUTPUT_LOCATION "${qBittorrent_BINARY_DIR}/src/webui/www/translations")
+-    qt_add_translation(QBT_WEBUI_QM_FILES ${QBT_WEBUI_TS_FILES} OPTIONS -removeidentical -silent)
+-    configure_file("${qBittorrent_SOURCE_DIR}/src/webui/www/translations/webui_translations.qrc"
+-        "${qBittorrent_BINARY_DIR}/src/webui/www/translations/webui_translations.qrc" COPYONLY)
++# Skip LinguistTools for Android cross-compilation (not available)
++if (TARGET Qt::lupdate)
++    file(GLOB QBT_TS_FILES "${qBittorrent_SOURCE_DIR}/src/lang/*.ts")
++    # Custom target to update .ts files and include new strings from source files
++    # Depends on Qt's LinguistTools
++    get_target_property(QT_LUPDATE_EXECUTABLE Qt::lupdate IMPORTED_LOCATION)
++    add_custom_target(qbt_update_translations
++                        COMMAND ${QT_LUPDATE_EXECUTABLE} -extensions ui,c,c++,cc,cpp,cxx,ch,h,h++,hh,hpp,hxx
++                                                         ${qBittorrent_SOURCE_DIR}
++                                                         -ts ${QBT_TS_FILES}
++                        WORKING_DIRECTORY "${qBittorrent_SOURCE_DIR}"
++                        VERBATIM
++                        COMMAND_EXPAND_LISTS)
++
++    # Generate and configure translation files
++    # -----------------------------------------------------------------------------
++    # -----------------------------------------------------------------------------
++    # Based on https://gist.github.com/giraldeau/546ba5512a74dfe9d8ea0862d66db412
++    set_source_files_properties(${QBT_TS_FILES} PROPERTIES OUTPUT_LOCATION "${qBittorrent_BINARY_DIR}/src/lang")
++    qt_add_translation(QBT_QM_FILES ${QBT_TS_FILES} OPTIONS -removeidentical -silent)
++    configure_file("${qBittorrent_SOURCE_DIR}/src/lang/lang.qrc" "${qBittorrent_BINARY_DIR}/src/lang/lang.qrc" COPYONLY)
++
++    if (WEBUI)
++        file(GLOB QBT_WEBUI_TS_FILES "${qBittorrent_SOURCE_DIR}/src/webui/www/translations/*.ts")
++        set_source_files_properties(${QBT_WEBUI_TS_FILES}
++            PROPERTIES OUTPUT_LOCATION "${qBittorrent_BINARY_DIR}/src/webui/www/translations")
++        qt_add_translation(QBT_WEBUI_QM_FILES ${QBT_WEBUI_TS_FILES} OPTIONS -removeidentical -silent)
++        configure_file("${qBittorrent_SOURCE_DIR}/src/webui/www/translations/webui_translations.qrc"
++            "${qBittorrent_BINARY_DIR}/src/webui/www/translations/webui_translations.qrc" COPYONLY)
++    endif()
++else()
++    message(STATUS "Qt6LinguistTools not found, skipping translations")
+ endif()
+ 
+ # Executable target configuration
+ # -----------------------------------------------------------------------------
+ # -----------------------------------------------------------------------------
+-add_executable(qbt_app)
++# Build as shared library for Android JNI in-process loading
++if (ANDROID)
++    add_library(qbt_app SHARED)
++    target_sources(qbt_app PRIVATE android_jni_bridge.cpp)
++    set_target_properties(qbt_app PROPERTIES OUTPUT_NAME qbt)
++else()
++    add_executable(qbt_app)
++endif()
+ 
+ target_sources(qbt_app PRIVATE
+     # headers
+@@ -65,11 +77,13 @@
+     qbt_base
+ )
+ 
+-set_target_properties(qbt_app PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+-if (GUI)
+-    set_target_properties(qbt_app PROPERTIES OUTPUT_NAME qbittorrent)
+-else()
+-    set_target_properties(qbt_app PROPERTIES OUTPUT_NAME qbittorrent-nox)
++if (NOT ANDROID)
++    set_target_properties(qbt_app PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
++    if (GUI)
++        set_target_properties(qbt_app PROPERTIES OUTPUT_NAME qbittorrent)
++    else()
++        set_target_properties(qbt_app PROPERTIES OUTPUT_NAME qbittorrent-nox)
++    endif()
+ endif()
+ 
+ # Additional platform specific configuration
+@@ -178,11 +192,18 @@
+ # Installation
+ # -----------------------------------------------------------------------------
+ # -----------------------------------------------------------------------------
+-install(TARGETS qbt_app
+-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+-    BUNDLE  DESTINATION .
+-    COMPONENT runtime
+-)
++if (ANDROID)
++    install(TARGETS qbt_app
++        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
++        COMPONENT runtime
++    )
++else()
++    install(TARGETS qbt_app
++        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
++        BUNDLE  DESTINATION .
++        COMPONENT runtime
++    )
++endif()
+ 
+ if (MSVC)
+     install(FILES $<TARGET_PDB_FILE:qbt_app>
