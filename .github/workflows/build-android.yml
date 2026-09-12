@@ -206,8 +206,8 @@ jobs:
 
           echo "=== Build output ==="
           ls -lh build-output/
-          # NDK 工具链给目标加 _arm64-v8a 后缀
-          test -f build-output/libqbt_arm64-v8a.so
+          # NDK 工具链可能给目标加 _arm64-v8a 后缀 (qb 4.x), 也可能不加 (qb 5.x)
+          ls build-output/libqbt*.so
           test -f build-output/libtorrent-rasterbar.so
           test -f build-output/libc++_shared.so
 
@@ -215,10 +215,11 @@ jobs:
         run: |
           # 校验 libqbt.so 的动态依赖在产物中齐备 (系统库除外)
           cd build-output
-          echo "=== libqbt NEEDED ==="
-          readelf -d libqbt_arm64-v8a.so | grep NEEDED
+          QBT_LIB=$(ls libqbt*.so | head -1)
+          echo "=== $QBT_LIB NEEDED ==="
+          readelf -d "$QBT_LIB" | grep NEEDED
           missing=0
-          for lib in $(readelf -d libqbt_arm64-v8a.so | grep NEEDED | sed 's/.*\[\(.*\)\].*/\1/'); do
+          for lib in $(readelf -d "$QBT_LIB" | grep NEEDED | sed 's/.*\[\(.*\)\].*/\1/'); do
             case "$lib" in
               liblog.so|libdl.so|libm.so|libc.so|libz.so) continue ;;
             esac
@@ -236,7 +237,7 @@ jobs:
           mkdir -p "$JNILIBS"
           # 清掉旧库, 防止不同变体间混入过期的 Qt5/Qt6 残留
           rm -f "$JNILIBS"/lib*.so
-          cp build-output/libqbt_arm64-v8a.so "$JNILIBS/libqbt.so"
+          cp $(ls build-output/libqbt*.so | head -1) "$JNILIBS/libqbt.so"
           cp build-output/libtorrent-rasterbar.so "$JNILIBS/"
           cp build-output/libc++_shared.so "$JNILIBS/"
           for lib in build-output/libQt*; do
