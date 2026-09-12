@@ -94,7 +94,7 @@ RUN if [ "$QT_KIND" = "qt6" ]; then \
     fi && \
     if [ "$QT_KIND" = "qt6" ]; then \
         QT_CMAKE_DIR=/opt/qt-android/${QT_VERSION}/android_arm64_v8a/lib/cmake/Qt6; \
-        LRELEASE=/usr/lib/qt6/libexec/lrelease; \
+        LRELEASE=/usr/lib/qt6/bin/lrelease; \
     else \
         QT_CMAKE_DIR=/opt/qt-android/${QT_VERSION}/android/lib/cmake/Qt5; \
         LRELEASE=/usr/lib/qt5/bin/lrelease; \
