@@ -197,14 +197,16 @@ jobs:
         run: |
           mkdir -p build-output
           docker create --name qb-out-${{ matrix.version }} qbittorrent-android:${{ matrix.version }}
-          docker cp qb-out-${{ matrix.version }}:/opt/qbt-output/lib/. ./build-output/
-          docker cp qb-out-${{ matrix.version }}:/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so ./build-output/
+          # /output/lib 是 Dockerfile 收集的最终产物 (libqbt/libtorrent/Qt 库/插件)
+          docker cp qb-out-${{ matrix.version }}:/output/lib/. ./build-output/
           docker rm qb-out-${{ matrix.version }}
 
           echo "=== Build output ==="
           ls -lh build-output/
-          test -f build-output/libqbt.so
+          # NDK 工具链给目标加 _arm64-v8a 后缀
+          test -f build-output/libqbt_arm64-v8a.so
           test -f build-output/libtorrent-rasterbar.so
+          test -f build-output/libc++_shared.so
 
       - name: Verify native library dependencies
         run: |
@@ -231,7 +233,7 @@ jobs:
           mkdir -p "$JNILIBS"
           # 清掉旧库, 防止不同变体间混入过期的 Qt5/Qt6 残留
           rm -f "$JNILIBS"/lib*.so
-          cp build-output/libqbt.so "$JNILIBS/"
+          cp build-output/libqbt_arm64-v8a.so "$JNILIBS/libqbt.so"
           cp build-output/libtorrent-rasterbar.so "$JNILIBS/"
           cp build-output/libc++_shared.so "$JNILIBS/"
           for lib in build-output/libQt*; do

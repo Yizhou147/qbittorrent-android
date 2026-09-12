@@ -89,10 +89,14 @@ ENV PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 # ===== 安装预编译 Qt for Android (aqtinstall) =====
 # qt5: 5.15.2 android (multi-abi 包)  -> /opt/qt-android/5.15.2/android
 # qt6: 6.6.3 android_arm64_v8a       -> /opt/qt-android/6.6.3/android_arm64_v8a
+# qt6 交叉编译还需要宿主机 Qt6 (QT_HOST_PATH)
 RUN if [ "$QT_KIND" = "qt6" ]; then \
-        aqt install-qt linux android ${QT_VERSION} android_arm64_v8a -O /opt/qt-android; \
+        aqt install-qt linux android ${QT_VERSION} android_arm64_v8a -O /opt/qt-android && \
+        aqt install-qt linux desktop ${QT_VERSION} gcc_64 -O /opt/qt-host && \
+        QT_HOST_PATH=/opt/qt-host/${QT_VERSION}/gcc_64; \
     else \
         aqt install-qt linux android ${QT_VERSION} android -O /opt/qt-android; \
+        QT_HOST_PATH=; \
     fi && \
     if [ "$QT_KIND" = "qt6" ]; then \
         QT_CMAKE_DIR=/opt/qt-android/${QT_VERSION}/android_arm64_v8a/lib/cmake/Qt6; \
@@ -104,7 +108,8 @@ RUN if [ "$QT_KIND" = "qt6" ]; then \
     echo "QT_CMAKE_DIR=${QT_CMAKE_DIR}" && test -d "${QT_CMAKE_DIR}" && \
     echo "LRELEASE=${LRELEASE}" && test -x "${LRELEASE}" && \
     echo "${QT_CMAKE_DIR}" > /tmp/qt_cmake_dir && \
-    echo "${LRELEASE}" > /tmp/lrelease_path
+    echo "${LRELEASE}" > /tmp/lrelease_path && \
+    echo "${QT_HOST_PATH}" > /tmp/qt_host_path
 
 # ===== 编译 OpenSSL =====
 WORKDIR /build
@@ -204,6 +209,7 @@ RUN export API=35 && \
     export CXX=${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang++ && \
     QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
     QT_ROOT=$(dirname $(dirname $(dirname ${QT_CMAKE_DIR}))) && \
+    QT_HOST_PATH=$(cat /tmp/qt_host_path) && \
     QT_MAJOR=$(echo $QT_KIND | sed 's/qt//') && \
     cd /build/qbittorrent-src && mkdir -p build && cd build && \
     cmake .. \
@@ -218,6 +224,7 @@ RUN export API=35 && \
         -DCMAKE_FIND_ROOT_PATH="${PREFIX};${QT_ROOT}" \
         -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
         -DQt${QT_MAJOR}_DIR=${QT_CMAKE_DIR} \
+        ${QT_HOST_PATH:+-DQT_HOST_PATH=${QT_HOST_PATH}} \
         -DGUI=OFF \
         -DWEBUI=ON \
         -DTESTING=OFF \
@@ -238,12 +245,13 @@ RUN export API=35 && \
     cmake --build . -j$(nproc) && cmake --install .
 
 # ===== 收集产物 (含 Qt 库和 sqlite 插件，供 APK jniLibs 使用) =====
-# 只打包 qbittorrent-nox 需要的 Qt 模块，避免整包 Qt 撑大 APK
+# 只打包 qbittorrent-nox 需要的 Qt 模块，避免整包 Qt 撑大 APK。
+# 注意 NDK 工具链会给目标加 _arm64-v8a 后缀: libqbt.so -> libqbt_arm64-v8a.so
 RUN QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
     QT_ROOT=$(dirname $(dirname $(dirname ${QT_CMAKE_DIR}))) && \
     mkdir -p ${PREFIX}/lib && \
     for m in Core Network Sql Xml; do \
-        cp ${QT_ROOT}/lib/libQt*${m}_arm64-v8a.so ${PREFIX}/lib/; \
+        cp ${QT_ROOT}/lib/libQt[56]${m}_arm64-v8a.so ${PREFIX}/lib/; \
     done && \
     if [ -f "${QT_ROOT}/plugins/sqldrivers/libqsqlite_arm64-v8a.so" ]; then \
         cp ${QT_ROOT}/plugins/sqldrivers/libqsqlite_arm64-v8a.so ${PREFIX}/lib/; \
@@ -252,7 +260,7 @@ RUN QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
     cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null; \
     cp ${PREFIX}/lib/*.so /output/lib/ && \
     cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null; \
-    ${STRIP} /output/lib/libqbt.so /output/lib/libtorrent-rasterbar.so 2>/dev/null; \
+    ${STRIP} /output/lib/libqbt_arm64-v8a.so /output/lib/libtorrent-rasterbar.so 2>/dev/null; \
     ls -lh /output/lib/
 
 CMD ["echo", "Build complete. Copy /output/lib"]
