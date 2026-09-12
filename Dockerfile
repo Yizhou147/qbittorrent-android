@@ -1,4 +1,23 @@
+# Parameterized cross-compilation of qBittorrent for Android (arm64-v8a).
+#
+# Source trees must be present before build:
+#   docker-sources/libtorrent/     libtorrent source (vanilla release)
+#   docker-sources/qbittorrent/    qBittorrent source (vanilla release, patched by ci/apply-patches.sh)
+#   docker-sources/openssl-3.3.2.tar.gz
+#   docker-sources/<boost tarball> (name passed via BOOST_TARBALL build-arg)
+#   docker-sources/platform-34-ext7_r02.zip, build-tools_r34-linux.zip, android-ndk-r27b-linux.zip
+#
+# Build-args select the variant, e.g.:
+#   qb 4.6.7: --build-arg QT_KIND=qt5 --build-arg QT_VERSION=5.15.2 --build-arg CXX_STANDARD=17
+#   qb 5.2.3: --build-arg QT_KIND=qt6 --build-arg QT_VERSION=6.6.3 --build-arg CXX_STANDARD=20
+#             --build-arg EXTRA_CMAKE_FLAGS=-DSTACKTRACE=OFF
 FROM ubuntu:22.04
+
+ARG QT_KIND=qt5
+ARG QT_VERSION=5.15.2
+ARG CXX_STANDARD=17
+ARG BOOST_TARBALL=boost_1_86_0.tar.gz
+ARG EXTRA_CMAKE_FLAGS=""
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME=/opt/android-sdk
@@ -6,6 +25,10 @@ ENV ANDROID_NDK=${ANDROID_HOME}/ndk/27.0.12077973
 ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
 ENV PREFIX=/opt/qbt-output
 ENV TOOLCHAIN=${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64
+
+# OpenSSL/Boost are compiled against android-24. libtorrent and qBittorrent are
+# compiled against android-35 below: NDK r27 gives only 8-byte TLS alignment at
+# API 24, while Android 16's linker requires >= 64 bytes.
 ENV CC=${TOOLCHAIN}/bin/aarch64-linux-android24-clang
 ENV CXX=${TOOLCHAIN}/bin/aarch64-linux-android24-clang++
 ENV AR=${TOOLCHAIN}/bin/llvm-ar
@@ -18,17 +41,21 @@ RUN (sed -i 's|http://archive.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/
     (sed -i 's|http://mirrors.ustc.edu.cn|http://archive.ubuntu.com|g' /etc/apt/sources.list; true)
 
 # ===== 安装基础工具 =====
+# lrelease (host) pre-compiles .ts translations because the Android Qt packages
+# ship no LinguistTools: qt5 -> qttools5-dev-tools, qt6 -> qt6-l10n-tools.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl wget unzip tar p7zip-full python3 python3-pip \
     build-essential cmake ninja-build pkg-config \
     clang perl \
     openjdk-17-jdk-headless \
     qttools5-dev-tools \
-    && rm -rf /var/lib/apt/lists/*
+    qt6-l10n-tools \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --no-cache-dir aqtinstall
 
 # ===== 复制本地源码包 =====
 COPY docker-sources/openssl-3.3.2.tar.gz /tmp/
-COPY docker-sources/boost_1_86_0.tar.gz /tmp/
+COPY docker-sources/${BOOST_TARBALL} /tmp/
 COPY docker-sources/libtorrent /build/libtorrent-src
 COPY docker-sources/qbittorrent /build/qbittorrent-src
 
@@ -57,13 +84,25 @@ RUN mkdir -p ${ANDROID_HOME}/ndk && \
 
 ENV PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 
-# ===== 安装预编译 Qt5 for Android (本地文件) =====
-COPY docker-sources/qtbase-android.7z /tmp/
-RUN mkdir -p /opt/qt5-prebuilt/5.15.2/android && \
-    cd /opt/qt5-prebuilt/5.15.2/android && \
-    7z x -y /tmp/qtbase-android.7z && \
-    rm -f /tmp/qtbase-android.7z && \
-    echo "Qt5 installed at:" && find /opt/qt5-prebuilt -name "Qt5Config.cmake"
+# ===== 安装预编译 Qt for Android (aqtinstall) =====
+# qt5: 5.15.2 android (multi-abi 包)  -> /opt/qt-android/5.15.2/android
+# qt6: 6.6.3 android_arm64_v8a       -> /opt/qt-android/6.6.3/android_arm64_v8a
+RUN if [ "$QT_KIND" = "qt6" ]; then \
+        aqt install-qt linux android ${QT_VERSION} android_arm64_v8a -O /opt/qt-android; \
+    else \
+        aqt install-qt linux android ${QT_VERSION} android -O /opt/qt-android; \
+    fi && \
+    if [ "$QT_KIND" = "qt6" ]; then \
+        QT_CMAKE_DIR=/opt/qt-android/${QT_VERSION}/android_arm64_v8a/lib/cmake/Qt6; \
+        LRELEASE=/usr/lib/qt6/libexec/lrelease; \
+    else \
+        QT_CMAKE_DIR=/opt/qt-android/${QT_VERSION}/android/lib/cmake/Qt5; \
+        LRELEASE=/usr/lib/qt5/bin/lrelease; \
+    fi && \
+    echo "QT_CMAKE_DIR=${QT_CMAKE_DIR}" && test -d "${QT_CMAKE_DIR}" && \
+    echo "LRELEASE=${LRELEASE}" && test -x "${LRELEASE}" && \
+    echo "${QT_CMAKE_DIR}" > /tmp/qt_cmake_dir && \
+    echo "${LRELEASE}" > /tmp/lrelease_path
 
 # ===== 编译 OpenSSL =====
 WORKDIR /build
@@ -77,8 +116,8 @@ RUN tar xzf /tmp/openssl-3.3.2.tar.gz && \
     make -j$(nproc) build_libs && make install_sw
 
 # ===== 编译 Boost =====
-RUN tar xzf /tmp/boost_1_86_0.tar.gz && \
-    cd boost_1_86_0 && \
+RUN tar xzf /tmp/${BOOST_TARBALL} && \
+    cd $(basename ${BOOST_TARBALL} .tar.gz) && \
     ./bootstrap.sh --with-toolset=clang && \
     echo "using clang : android : ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ : <archiver>${TOOLCHAIN}/bin/llvm-ar <ranlib>${TOOLCHAIN}/bin/llvm-ranlib <linkflags>-llog <compileflags>--target=aarch64-linux-android24 <compileflags>-fPIC ;" > user-config.jam && \
     ./b2 install \
@@ -95,17 +134,20 @@ RUN tar xzf /tmp/boost_1_86_0.tar.gz && \
         linkflags="--target=aarch64-linux-android24 -llog" \
         -j$(nproc) --abbreviate-paths -d1
 
-# ===== 编译 libtorrent =====
-RUN cd /build/libtorrent-src && mkdir build && cd build && \
+# ===== 编译 libtorrent (API 35 target, 见文件头说明) =====
+RUN export API=35 && \
+    export CC=${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang && \
+    export CXX=${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang++ && \
+    cd /build/libtorrent-src && mkdir build && cd build && \
     cmake .. \
         -G Ninja \
         -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
         -DANDROID_ABI=arm64-v8a \
-        -DANDROID_PLATFORM=android-24 \
+        -DANDROID_PLATFORM=android-${API} \
         -DANDROID_STL=c++_shared \
         -DCMAKE_INSTALL_PREFIX=${PREFIX} \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_CXX_STANDARD=17 \
+        -DCMAKE_CXX_STANDARD=${CXX_STANDARD} \
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
         -DBoost_INCLUDE_DIR=${PREFIX}/include \
         -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
@@ -123,27 +165,20 @@ RUN cd /build/libtorrent-src && mkdir build && cd build && \
         -Dencryption=ON && \
     cmake --build . -j$(nproc) && cmake --install .
 
-# ===== 编译 qBittorrent =====
-# Qt5 预编译路径 (7z解压后有嵌套目录)
-ENV QT5_ANDROID=/opt/qt5-prebuilt/5.15.2/android/5.15.2/android
-
-# 补丁: 让 CMakeLists.txt 支持预编译翻译文件 (无 LinguistTools 时)
-COPY docker-sources/patch-cmake.py /tmp/patch-cmake.py
-RUN python3 /tmp/patch-cmake.py && rm /tmp/patch-cmake.py
-
-# 预编译翻译文件 (在 cmake configure 之前，以便 cmake 能找到 .qrc)
+# ===== 预编译翻译文件 (在 cmake configure 之前，以便 cmake 能找到 .qrc) =====
 RUN SRC=/build/qbittorrent-src && \
     BUILD=/build/qbittorrent-src/build && \
+    LRELEASE=$(cat /tmp/lrelease_path) && \
     mkdir -p ${BUILD}/src/lang ${BUILD}/src/webui/www/translations && \
     echo "=== Compiling app translations ===" && \
     for ts in ${SRC}/src/lang/*.ts; do \
         base=$(basename "$ts" .ts) && \
-        lrelease "$ts" -qm "${BUILD}/src/lang/${base}.qm" 2>/dev/null; \
+        ${LRELEASE} "$ts" -qm "${BUILD}/src/lang/${base}.qm" 2>/dev/null; \
     done && \
     echo "=== Compiling WebUI translations ===" && \
     for ts in ${SRC}/src/webui/www/translations/*.ts; do \
         base=$(basename "$ts" .ts) && \
-        lrelease "$ts" -qm "${BUILD}/src/webui/www/translations/${base}.qm" 2>/dev/null; \
+        ${LRELEASE} "$ts" -qm "${BUILD}/src/webui/www/translations/${base}.qm" 2>/dev/null; \
     done && \
     echo "=== Generating QRC files ===" && \
     echo '<RCC><qresource prefix="/lang">' > ${BUILD}/src/lang/lang.qrc && \
@@ -160,22 +195,30 @@ RUN SRC=/build/qbittorrent-src && \
     ls ${BUILD}/src/lang/*.qm | wc -l && echo " app .qm files" && \
     ls ${BUILD}/src/webui/www/translations/*.qm | wc -l && echo " webui .qm files"
 
-RUN cd /build/qbittorrent-src && mkdir -p build && cd build && \
+# ===== 编译 qBittorrent (API 35 target, 共享库 libqbt.so + JNI 桥接) =====
+RUN export API=35 && \
+    export CC=${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang && \
+    export CXX=${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang++ && \
+    QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
+    QT_ROOT=$(dirname $(dirname $(dirname ${QT_CMAKE_DIR}))) && \
+    QT_MAJOR=$(echo $QT_KIND | sed 's/qt//') && \
+    cd /build/qbittorrent-src && mkdir -p build && cd build && \
     cmake .. \
         -G Ninja \
         -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK}/build/cmake/android.toolchain.cmake \
         -DANDROID_ABI=arm64-v8a \
-        -DANDROID_PLATFORM=android-24 \
+        -DANDROID_PLATFORM=android-${API} \
         -DANDROID_STL=c++_shared \
         -DCMAKE_INSTALL_PREFIX=${PREFIX} \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_CXX_STANDARD=17 \
-        -DCMAKE_FIND_ROOT_PATH="${PREFIX};${QT5_ANDROID}" \
+        -DCMAKE_CXX_STANDARD=${CXX_STANDARD} \
+        -DCMAKE_FIND_ROOT_PATH="${PREFIX};${QT_ROOT}" \
         -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH \
-        -DQt5_DIR=${QT5_ANDROID}/lib/cmake/Qt5 \
+        -DQt${QT_MAJOR}_DIR=${QT_CMAKE_DIR} \
         -DGUI=OFF \
         -DWEBUI=ON \
         -DTESTING=OFF \
+        ${EXTRA_CMAKE_FLAGS} \
         -DBoost_INCLUDE_DIR=${PREFIX}/include \
         -DBoost_SYSTEM_LIBRARY=${PREFIX}/lib/libboost_system.a \
         -DBoost_FILESYSTEM_LIBRARY=${PREFIX}/lib/libboost_filesystem.a \
@@ -191,11 +234,22 @@ RUN cd /build/qbittorrent-src && mkdir -p build && cd build && \
         -DLibtorrentRasterbar_DIR=${PREFIX}/lib/cmake/LibtorrentRasterbar && \
     cmake --build . -j$(nproc) && cmake --install .
 
-# ===== 收集产物 =====
-RUN mkdir -p /output/lib && \
-    cp ${PREFIX}/bin/qbittorrent-nox /output/ && \
-    cp ${PREFIX}/lib/*.so /output/lib/ 2>/dev/null; \
+# ===== 收集产物 (含 Qt 库和 sqlite 插件，供 APK jniLibs 使用) =====
+# 只打包 qbittorrent-nox 需要的 Qt 模块，避免整包 Qt 撑大 APK
+RUN QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
+    QT_ROOT=$(dirname $(dirname $(dirname ${QT_CMAKE_DIR}))) && \
+    mkdir -p ${PREFIX}/lib && \
+    for m in Core Network Sql Xml; do \
+        cp ${QT_ROOT}/lib/libQt*${m}_arm64-v8a.so ${PREFIX}/lib/; \
+    done && \
+    if [ -f "${QT_ROOT}/plugins/sqldrivers/libqsqlite_arm64-v8a.so" ]; then \
+        cp ${QT_ROOT}/plugins/sqldrivers/libqsqlite_arm64-v8a.so ${PREFIX}/lib/; \
+    fi && \
+    mkdir -p /output/lib && \
+    cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null; \
+    cp ${PREFIX}/lib/*.so /output/lib/ && \
     cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null; \
-    ${STRIP} /output/qbittorrent-nox 2>/dev/null; true
+    ${STRIP} /output/lib/libqbt.so /output/lib/libtorrent-rasterbar.so 2>/dev/null; \
+    ls -lh /output/lib/
 
-CMD ["echo", "Build complete. Copy /output/qbittorrent-nox"]
+CMD ["echo", "Build complete. Copy /output/lib"]

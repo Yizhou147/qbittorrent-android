@@ -1,0 +1,19 @@
+--- a/src/base/bittorrent/resumedatastorage.cpp
++++ b/src/base/bittorrent/resumedatastorage.cpp
+@@ -52,10 +52,15 @@
+ {
+     m_loadedResumeData.reserve(1024);
+ 
+-    auto *loadingThread = QThread::create([this]()
++    auto *loadingThread = new QThread;
++    auto *worker = new QObject;
++    worker->moveToThread(loadingThread);
++    connect(loadingThread, &QThread::started, worker, [this]()
+     {
+         doLoadAll();
++        QThread::currentThread()->quit();
+     });
++    connect(loadingThread, &QThread::finished, worker, &QObject::deleteLater);
+     connect(loadingThread, &QThread::finished, loadingThread, &QObject::deleteLater);
+     loadingThread->start();
+ }

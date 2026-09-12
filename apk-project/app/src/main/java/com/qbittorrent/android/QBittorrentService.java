@@ -573,16 +573,21 @@ public class QBittorrentService extends Service {
             System.setProperty("HOME", configDir.getAbsolutePath());
             System.setProperty("TMPDIR", getCacheDir().getAbsolutePath());
 
-            // Load Qt5 libraries first (triggers their JNI_OnLoad → sets JavaVM)
-            broadcastLog("INFO", "Loading Qt5 libraries via System.loadLibrary...");
-            System.loadLibrary("Qt5Core_arm64-v8a");
-            broadcastLog("INFO", "  Qt5Core loaded");
-            System.loadLibrary("Qt5Network_arm64-v8a");
-            broadcastLog("INFO", "  Qt5Network loaded");
-            System.loadLibrary("Qt5Xml_arm64-v8a");
-            broadcastLog("INFO", "  Qt5Xml loaded");
-            System.loadLibrary("Qt5Sql_arm64-v8a");
-            broadcastLog("INFO", "  Qt5Sql loaded");
+            // Load Qt libraries first (their JNI_OnLoad sets the JavaVM pointer).
+            // The library names differ between the Qt5 and Qt6 builds, so load
+            // whatever libQt*_arm64-v8a.so files are present in the APK.
+            broadcastLog("INFO", "Loading Qt libraries via System.loadLibrary...");
+            String[] qtLibs = libDirFile.list((dir, name) ->
+                    name.startsWith("libQt") && name.endsWith("_arm64-v8a.so"));
+            if (qtLibs != null) {
+                java.util.Arrays.sort(qtLibs);
+                for (String f : qtLibs) {
+                    System.loadLibrary(f.substring(3, f.length() - 3)); // strip "lib" / ".so"
+                    broadcastLog("INFO", "  " + f + " loaded");
+                }
+            } else {
+                throw new UnsatisfiedLinkError("No Qt libraries found in " + nativeLibDir);
+            }
 
             // Load libtorrent
             System.loadLibrary("torrent-rasterbar");

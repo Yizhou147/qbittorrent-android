@@ -2,16 +2,52 @@ name: Build qBittorrent Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      qb_version:
+        description: 'qBittorrent 版本 (all = 全部构建)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - '4.3.9'
+          - '4.6.7'
+          - '5.2.3'
   push:
     tags:
       - 'v*'
 
 jobs:
+  prepare:
+    name: Prepare build matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          requested="${{ inputs.qb_version }}"
+          if [ -z "$requested" ] || [ "$requested" = "all" ]; then
+            echo 'matrix={"version":["4.3.9","4.6.7","5.2.3"]}' >> "$GITHUB_OUTPUT"
+          else
+            echo "matrix={\"version\":[\"$requested\"]}" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
-    name: Build APK
+    name: Build (qBittorrent ${{ matrix.version }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
-
+    env:
+      # 每个变体的构建参数: qbittorrent / libtorrent / Qt / C++ 标准 / 额外 cmake 参数 / VueTorrent 版本
+      # 4.3.9 需要 libtorrent 1.2.x 和 VueTorrent v0.13.0 (v1.0+ 要求 qb >= 4.4)
+      # 5.2.3 需要 Qt6 >= 6.6 和 C++20
+      QT5_VERSION: 5.15.2
+      QT6_VERSION: 6.6.3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -27,47 +63,98 @@ jobs:
             echo "version=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
           fi
 
+      - name: Resolve variant parameters
+        id: params
+        run: |
+          case "${{ matrix.version }}" in
+            4.3.9)
+              echo "qbt_ref=release-4.3.9"        >> $GITHUB_OUTPUT
+              echo "lt_ref=v1.2.20"               >> $GITHUB_OUTPUT
+              echo "qt_kind=qt5"                  >> $GITHUB_OUTPUT
+              echo "qt_version=$QT5_VERSION"      >> $GITHUB_OUTPUT
+              echo "cxx_standard=17"              >> $GITHUB_OUTPUT
+              echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
+              # VueTorrent v1.0+ 需要 qBittorrent >= 4.4, 4.3.x 用 v0.13.0
+              echo "vuetorrent_url=https://github.com/WDaan/VueTorrent/releases/download/v0.13.0/vuetorrent.zip" >> $GITHUB_OUTPUT
+              ;;
+            4.6.7)
+              echo "qbt_ref=release-4.6.7"   >> $GITHUB_OUTPUT
+              echo "lt_ref=v2.0.10"          >> $GITHUB_OUTPUT
+              echo "qt_kind=qt5"             >> $GITHUB_OUTPUT
+              echo "qt_version=$QT5_VERSION" >> $GITHUB_OUTPUT
+              echo "cxx_standard=17"         >> $GITHUB_OUTPUT
+              echo "extra_flags="            >> $GITHUB_OUTPUT
+              echo "vuetorrent_url="         >> $GITHUB_OUTPUT
+              ;;
+            5.2.3)
+              echo "qbt_ref=release-5.2.3"        >> $GITHUB_OUTPUT
+              echo "lt_ref=v2.0.14"               >> $GITHUB_OUTPUT
+              echo "qt_kind=qt6"                  >> $GITHUB_OUTPUT
+              echo "qt_version=$QT6_VERSION"      >> $GITHUB_OUTPUT
+              echo "cxx_standard=20"              >> $GITHUB_OUTPUT
+              echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
+              echo "vuetorrent_url="              >> $GITHUB_OUTPUT
+              ;;
+            *)
+              echo "Unknown version: ${{ matrix.version }}" >&2
+              exit 1
+              ;;
+          esac
+
       - name: Download build dependencies
         run: |
           mkdir -p docker-sources
-          
+
           # Download Android SDK Platform 34
           echo "Downloading SDK Platform 34..."
           curl -L --retry 3 --connect-timeout 60 -o docker-sources/platform-34-ext7_r02.zip \
             "https://dl.google.com/android/repository/platform-34-ext7_r02.zip"
-          
+
           # Download Android Build Tools 34.0.0
           echo "Downloading Build Tools 34.0.0..."
           curl -L --retry 3 --connect-timeout 60 -o docker-sources/build-tools_r34-linux.zip \
             "https://dl.google.com/android/repository/build-tools_r34-linux.zip"
-          
+
           # Download Android NDK r27b
           echo "Downloading NDK r27b..."
           curl -L --retry 3 --connect-timeout 120 -o docker-sources/android-ndk-r27b-linux.zip \
             "https://dl.google.com/android/repository/android-ndk-r27b-linux.zip"
-          
-          # Download Qt5 qtbase for Android
-          echo "Downloading Qt5 qtbase..."
-          curl -L --retry 3 --connect-timeout 120 -o docker-sources/qtbase-android.7z \
-            "https://ftp.fau.de/qtproject/online/qtsdkrepository/linux_x64/android/qt5_5152/qt.qt5.5152.android/5.15.2-0-202011130628qtbase-Linux-RHEL_7_6-Clang-Android-Android_ANY-Multi.7z" || \
-          curl -L --retry 3 --connect-timeout 120 -o docker-sources/qtbase-android.7z \
-            "https://download.qt.io/online/qtsdkrepository/linux_x64/android/qt5_5152/qt.qt5.5152.android/5.15.2-0-202011130628qtbase-Linux-RHEL_7_6-Clang-Android-Android_ANY-Multi.7z"
-          
+
           # Download OpenSSL
           echo "Downloading OpenSSL..."
           curl -L --retry 3 --connect-timeout 60 -o docker-sources/openssl-3.3.2.tar.gz \
             "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz" || \
           curl -L --retry 3 --connect-timeout 60 -o docker-sources/openssl-3.3.2.tar.gz \
             "https://www.openssl.org/source/openssl-3.3.2.tar.gz"
-          
+
           # Download Boost
           echo "Downloading Boost..."
           curl -L --retry 3 --connect-timeout 60 -o docker-sources/boost_1_86_0.tar.gz \
             "https://archives.boost.io/release/1.86.0/source/boost_1_86_0.tar.gz"
-          
+
+          # Download qBittorrent source
+          echo "Downloading qBittorrent ${{ steps.params.outputs.qbt_ref }}..."
+          curl -L --retry 3 --connect-timeout 60 \
+            -o docker-sources/qbittorrent.tar.gz \
+            "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/${{ steps.params.outputs.qbt_ref }}.tar.gz"
+
+          # Download libtorrent source
+          echo "Downloading libtorrent ${{ steps.params.outputs.lt_ref }}..."
+          curl -L --retry 3 --connect-timeout 60 \
+            -o docker-sources/libtorrent.tar.gz \
+            "https://github.com/arvidn/libtorrent/archive/refs/tags/${{ steps.params.outputs.lt_ref }}.tar.gz"
+
+          # Download VueTorrent when the variant needs a specific version
+          if [ -n "${{ steps.params.outputs.vuetorrent_url }}" ]; then
+            echo "Downloading VueTorrent..."
+            curl -L --retry 3 --connect-timeout 60 \
+              -o apk-project/app/src/main/assets/vuetorrent.zip \
+              "${{ steps.params.outputs.vuetorrent_url }}"
+          fi
+
           echo "=== Verifying downloads ==="
           ls -lh docker-sources/
-          for f in docker-sources/*.zip docker-sources/*.tar.gz docker-sources/*.7z; do
+          for f in docker-sources/*.zip docker-sources/*.tar.gz; do
             if [ -f "$f" ]; then
               size=$(stat -c%s "$f")
               echo "$f: $size bytes"
@@ -80,68 +167,77 @@ jobs:
 
       - name: Prepare source directories
         run: |
-          # Create libtorrent source directory from archive
-          if [ -f docker-sources/docker-sources-libtorrent.tar.gz ]; then
-            mkdir -p docker-sources/libtorrent
-            tar xzf docker-sources/docker-sources-libtorrent.tar.gz -C docker-sources/libtorrent --strip-components=1
-          fi
-          
-          # Create qbittorrent source directory from archive
-          if [ -f docker-sources/docker-sources-qbittorrent.tar.gz ]; then
-            mkdir -p docker-sources/qbittorrent
-            tar xzf docker-sources/docker-sources-qbittorrent.tar.gz -C docker-sources/qbittorrent --strip-components=1
-          fi
-          
-          echo "=== Source directories ==="
-          ls -la docker-sources/
+          mkdir -p docker-sources/libtorrent docker-sources/qbittorrent
+          tar xzf docker-sources/libtorrent.tar.gz -C docker-sources/libtorrent --strip-components=1
+          tar xzf docker-sources/qbittorrent.tar.gz -C docker-sources/qbittorrent --strip-components=1
+
+          # Android 移植补丁: 共享库化 + JNI 桥接 + LinguistTools 可选化 (+ 线程修复)
+          bash ci/apply-patches.sh "${{ matrix.version }}" docker-sources/qbittorrent
+
+          echo "=== Patched source sanity check ==="
+          test -f docker-sources/qbittorrent/src/app/android_jni_bridge.cpp
+          grep -q "add_library(qbt_app SHARED)" docker-sources/qbittorrent/src/app/CMakeLists.txt
+          echo "OK"
 
       - name: Build Docker image
         run: |
-          docker build -t qbittorrent-android .
+          docker build -t qbittorrent-android:${{ matrix.version }} \
+            --build-arg QT_KIND=${{ steps.params.outputs.qt_kind }} \
+            --build-arg QT_VERSION=${{ steps.params.outputs.qt_version }} \
+            --build-arg CXX_STANDARD=${{ steps.params.outputs.cxx_standard }} \
+            --build-arg EXTRA_CMAKE_FLAGS="${{ steps.params.outputs.extra_flags }}" \
+            .
 
       - name: Extract build artifacts
         run: |
           mkdir -p build-output
-          docker create --name qb-out qbittorrent-android
-          docker cp qb-out:/opt/qbt-output/lib/. ./build-output/
-          docker cp qb-out:/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so ./build-output/
-          docker rm qb-out
-          
+          docker create --name qb-out-${{ matrix.version }} qbittorrent-android:${{ matrix.version }}
+          docker cp qb-out-${{ matrix.version }}:/opt/qbt-output/lib/. ./build-output/
+          docker cp qb-out-${{ matrix.version }}:/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so ./build-output/
+          docker rm qb-out-${{ matrix.version }}
+
           echo "=== Build output ==="
           ls -lh build-output/
+          test -f build-output/libqbt.so
+          test -f build-output/libtorrent-rasterbar.so
 
-      - name: Strip native libraries
+      - name: Verify native library dependencies
         run: |
-          docker run --rm -v ${{ github.workspace }}/build-output:/out qbittorrent-android \
-            /bin/sh -c "/opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip /out/libqbt_arm64-v8a.so 2>/dev/null || true; \
-                        /opt/android-sdk/ndk/27.0.12077973/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip /out/libtorrent-rasterbar.so 2>/dev/null || true"
-          
-          echo "=== Stripped libraries ==="
-          ls -lh build-output/*.so
+          # 校验 libqbt.so 的动态依赖在产物中齐备 (系统库除外)
+          cd build-output
+          echo "=== libqbt.so NEEDED ==="
+          readelf -d libqbt.so | grep NEEDED
+          missing=0
+          for lib in $(readelf -d libqbt.so | grep NEEDED | sed 's/.*\[\(.*\)\].*/\1/'); do
+            case "$lib" in
+              liblog.so|libdl.so|libm.so|libc.so|libz.so) continue ;;
+            esac
+            if [ ! -f "$lib" ]; then
+              echo "MISSING: $lib"
+              missing=1
+            fi
+          done
+          [ "$missing" = "0" ] || exit 1
+          echo "All non-system dependencies present"
 
       - name: Prepare jniLibs
         run: |
-          mkdir -p apk-project/app/src/main/jniLibs/arm64-v8a
-          cp build-output/libqbt_arm64-v8a.so apk-project/app/src/main/jniLibs/arm64-v8a/libqbt.so
-          cp build-output/libtorrent-rasterbar.so apk-project/app/src/main/jniLibs/arm64-v8a/
-          cp build-output/libc++_shared.so apk-project/app/src/main/jniLibs/arm64-v8a/
-          
-          # Copy Qt5 libraries if they exist in build-output
-          for lib in libQt5Core_arm64-v8a.so libQt5Network_arm64-v8a.so libQt5Sql_arm64-v8a.so libQt5Xml_arm64-v8a.so libplugins_sqldrivers_qsqlite_arm64-v8a.so; do
-            if [ -f "build-output/$lib" ]; then
-              cp "build-output/$lib" apk-project/app/src/main/jniLibs/arm64-v8a/
-            fi
+          JNILIBS=apk-project/app/src/main/jniLibs/arm64-v8a
+          mkdir -p "$JNILIBS"
+          # 清掉旧库, 防止不同变体间混入过期的 Qt5/Qt6 残留
+          rm -f "$JNILIBS"/lib*.so
+          cp build-output/libqbt.so "$JNILIBS/"
+          cp build-output/libtorrent-rasterbar.so "$JNILIBS/"
+          cp build-output/libc++_shared.so "$JNILIBS/"
+          for lib in build-output/libQt*; do
+            cp "$lib" "$JNILIBS/"
           done
-          
-          # Copy OpenSSL libraries if they exist
-          for lib in libssl.so libcrypto.so; do
-            if [ -f "build-output/$lib" ]; then
-              cp "build-output/$lib" apk-project/app/src/main/jniLibs/arm64-v8a/
-            fi
-          done
-          
+          if [ -f build-output/libplugins_sqldrivers_qsqlite_arm64-v8a.so ]; then
+            cp build-output/libplugins_sqldrivers_qsqlite_arm64-v8a.so "$JNILIBS/"
+          fi
+
           echo "=== jniLibs contents ==="
-          ls -lh apk-project/app/src/main/jniLibs/arm64-v8a/
+          ls -lh "$JNILIBS"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -161,11 +257,11 @@ jobs:
       - name: Rename APK
         run: |
           mv apk-project/app/build/outputs/apk/release/app-release.apk \
-             qbittorrent-android-${{ steps.version.outputs.version }}.apk
+             qbittorrent-android-qb${{ matrix.version }}-${{ steps.version.outputs.version }}.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: qbittorrent-android-${{ steps.version.outputs.version }}
-          path: qbittorrent-android-${{ steps.version.outputs.version }}.apk
+          name: qbittorrent-android-qb${{ matrix.version }}
+          path: qbittorrent-android-qb${{ matrix.version }}-${{ steps.version.outputs.version }}.apk
           retention-days: 90

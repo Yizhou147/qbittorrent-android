@@ -1,0 +1,12 @@
+--- a/cmake/Modules/CheckPackages.cmake
++++ b/cmake/Modules/CheckPackages.cmake
+@@ -56,7 +56,8 @@
+         )
+     endif()
+ else()
+-    find_package(Qt5 ${minQt5Version} REQUIRED COMPONENTS Core Network Sql Xml LinguistTools)
++    find_package(Qt5 ${minQt5Version} REQUIRED COMPONENTS Core Network Sql Xml)
++    find_package(Qt5 ${minQt5Version} COMPONENTS LinguistTools)
+     if (DBUS)
+         find_package(Qt5 ${minQt5Version} REQUIRED COMPONENTS DBus)
+         set_package_properties(Qt5DBus PROPERTIES
