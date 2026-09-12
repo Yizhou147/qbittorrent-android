@@ -260,7 +260,7 @@ RUN QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
     cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null; \
     cp ${PREFIX}/lib/*.so /output/lib/ && \
     cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null; \
-    ${STRIP} /output/lib/libqbt_arm64-v8a.so /output/lib/libtorrent-rasterbar.so 2>/dev/null; \
+    ${STRIP} /output/lib/libqbt*.so /output/lib/libtorrent-rasterbar.so 2>/dev/null; \
     ls -lh /output/lib/
 
 CMD ["echo", "Build complete. Copy /output/lib"]
