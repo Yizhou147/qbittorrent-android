@@ -78,8 +78,6 @@ jobs:
               echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
               # 新版 clang 将 narrowing 聚合初始化视为错误，1.2.x 源码有多处
               echo "extra_lt_flags=-Wno-error=c++11-narrowing-const-ref -Wno-error=c++11-narrowing" >> $GITHUB_OUTPUT
-              # VueTorrent v1.0+ 需要 qBittorrent >= 4.4, 4.3.x 用 v0.13.0
-              echo "vuetorrent_url=https://github.com/WDaan/VueTorrent/releases/download/v0.13.0/vuetorrent.zip" >> $GITHUB_OUTPUT
               ;;
             4.6.7)
               echo "qbt_ref=release-4.6.7"   >> $GITHUB_OUTPUT
@@ -89,7 +87,6 @@ jobs:
               echo "cxx_standard=17"         >> $GITHUB_OUTPUT
               echo "extra_flags="            >> $GITHUB_OUTPUT
               echo "extra_lt_flags="         >> $GITHUB_OUTPUT
-              echo "vuetorrent_url="         >> $GITHUB_OUTPUT
               ;;
             5.2.3)
               echo "qbt_ref=release-5.2.3"        >> $GITHUB_OUTPUT
@@ -100,7 +97,6 @@ jobs:
               # rcc zstd 问题由 ci/patches/5.2.3/040-rcc-no-zstd.patch 处理
               echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
               echo "extra_lt_flags="              >> $GITHUB_OUTPUT
-              echo "vuetorrent_url="              >> $GITHUB_OUTPUT
               ;;
             *)
               echo "Unknown version: ${{ matrix.version }}" >&2
@@ -152,13 +148,8 @@ jobs:
             --recursive --shallow-submodules \
             https://github.com/arvidn/libtorrent docker-sources/libtorrent
 
-          # Download VueTorrent when the variant needs a specific version
-          if [ -n "${{ steps.params.outputs.vuetorrent_url }}" ]; then
-            echo "Downloading VueTorrent..."
-            curl -L --retry 3 --connect-timeout 60 \
-              -o apk-project/app/src/main/assets/vuetorrent.zip \
-              "${{ steps.params.outputs.vuetorrent_url }}"
-          fi
+          # WebUI 统一使用仓库内 apk-project/app/src/main/assets/vuetorrent.zip
+          # (VueTorrent 2.34.0 中文默认版, 所有 qb 变体一致, 不按版本切换)
 
           echo "=== Verifying downloads ==="
           ls -lh docker-sources/

@@ -15,11 +15,15 @@
 
 **支持三个 qBittorrent 版本**（CI 矩阵构建，任选）：
 
-| qBittorrent | libtorrent | Qt | C++ 标准 | VueTorrent |
-|---|---|---|---|---|
-| 4.3.9 | 1.2.20 | 5.15.2 | 17 | v0.13.0（v1.0+ 要求 qb ≥ 4.4） |
-| 4.6.7 | 2.0.10 | 5.15.2 | 17 | 最新 |
-| 5.2.3 | 2.0.14 | 6.6.3 | 20 | 最新 |
+| qBittorrent | libtorrent | Qt | C++ 标准 |
+|---|---|---|---|
+| 4.3.9 | 1.2.20 | 5.15.2 | 17 |
+| 4.6.7 | 2.0.10 | 5.15.2 | 17 |
+| 5.2.3 | 2.0.14 | 6.6.3 | 20 |
+
+三个变体的内置 WebUI 统一为 **VueTorrent 2.34.0 中文默认版**
+（`apk-project/app/src/main/assets/vuetorrent.zip`，来自
+[Yizhou147/VueTorrent](https://github.com/Yizhou147/VueTorrent)），不按版本切换。
 
 不推荐进行PT下载，强行使用后果自负！
 
@@ -243,7 +247,7 @@ qbittorrent-android/
 │   ├── app/
 │   │   ├── src/main/
 │   │   │   ├── java/             # Java 源码
-│   │   │   ├── assets/           # VueTorrent zip
+│   │   │   ├── assets/           # VueTorrent 2.34.0 中文版 zip
 │   │   │   ├── jniLibs/          # 原生库（CI 构建时刷新）
 │   │   │   └── res/              # 资源文件
 │   │   └── build.gradle
@@ -295,6 +299,7 @@ qbittorrent-android/
 - [libtorrent](https://www.libtorrent.org/) - BitTorrent 库
 - [OpenSSL](https://www.openssl.org/) - 加密库
 - [VueTorrent](https://github.com/WDaan/VueTorrent) - Vue.js WebUI
+  （本项目使用其[中文默认版 fork](https://github.com/Yizhou147/VueTorrent) 2.34.0）
 
 ## 许可证
 
