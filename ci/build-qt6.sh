@@ -66,8 +66,9 @@ mkdir -p /build/qt6-build && cd /build/qt6-build
     -qt-host-path ${HOST_QT} \
     -nomake examples -nomake tests \
     -no-gui -no-widgets -no-dbus -no-opengl -no-vulkan \
-    -no-openssl \
-    -shared 2>&1 | tail -60
+    -openssl-linked \
+    -shared \
+    -- -DOPENSSL_ROOT_DIR=${PREFIX} 2>&1 | tail -60
 
 echo "===== 编译 Qt6 (约 40-60 分钟) ====="
 if ! cmake --build . -j$(nproc) > /tmp/qt6-make.log 2>&1; then

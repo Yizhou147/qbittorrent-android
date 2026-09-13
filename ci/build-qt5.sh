@@ -102,6 +102,11 @@ else
     head -20 /tmp/ossltest.err
 fi
 
+echo "===== openssl ABI 后缀别名 (qt5 android 链接 -lssl_arm64-v8a) ====="
+ln -sf libssl.so.3 ${PREFIX}/lib/libssl_arm64-v8a.so
+ln -sf libcrypto.so.3 ${PREFIX}/lib/libcrypto_arm64-v8a.so
+ls -la ${PREFIX}/lib/ | grep -E "ssl|crypto"
+
 echo "===== 配置 Qt5 ====="
 # qt5 configure 的 openssl 探测测试读取 OPENSSL_LIBS 环境变量
 export OPENSSL_LIBS="-L${PREFIX}/lib -lssl -lcrypto -ldl"
