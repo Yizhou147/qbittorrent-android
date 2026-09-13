@@ -160,8 +160,12 @@ jobs:
 
       - name: Start emulator
         run: |
+          # avdmanager 与 emulator 的 AVD home 可能不一致, 显式统一
+          export ANDROID_AVD_HOME=$HOME/.android/avd
+          mkdir -p "$ANDROID_AVD_HOME"
           echo no | avdmanager create avd -n qbt-test \
             -k "system-images;android-30;google_apis;x86_64" -d pixel --force
+          avdmanager list avd
           ${ANDROID_HOME}/emulator/emulator -avd qbt-test \
             -no-window -no-audio -no-boot-anim -no-snapshot \
             -gpu swiftshader_indirect -accel on \
