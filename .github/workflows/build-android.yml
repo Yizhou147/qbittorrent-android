@@ -245,9 +245,6 @@ jobs:
           for lib in build-output/libQt*; do
             cp "$lib" "$JNILIBS/"
           done
-          # Qt Java 类 (JNI_OnLoad 注册 natives 与运行期 JNI 调用需要)
-          mkdir -p apk-project/app/libs
-          cp build-output/*.jar apk-project/app/libs/
           if [ -f build-output/libplugins_sqldrivers_qsqlite_arm64-v8a.so ]; then
             cp build-output/libplugins_sqldrivers_qsqlite_arm64-v8a.so "$JNILIBS/"
           fi
