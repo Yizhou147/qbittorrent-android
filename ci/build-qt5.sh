@@ -99,7 +99,7 @@ mkdir -p /build/qt5-build && cd /build/qt5-build
     -android-arch arm64-v8a \
     -no-gui -no-widgets -no-dbus -no-accessibility \
     -no-opengl -no-vulkan \
-    -no-openssl \
+    -openssl-linked \
     -no-libjpeg -no-libpng -no-harfbuzz -no-freetype \
     -no-glib -no-mtdev -no-evdev -no-tslib -no-icu -no-cups -no-pch \
     -nomake tests -nomake examples \
