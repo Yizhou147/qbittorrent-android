@@ -70,7 +70,13 @@ mkdir -p /build/qt6-build && cd /build/qt6-build
     -shared 2>&1 | tail -60
 
 echo "===== 编译 Qt6 (约 40-60 分钟) ====="
-cmake --build . -j$(nproc) 2>&1 | tail -10
+if ! cmake --build . -j$(nproc) > /tmp/qt6-make.log 2>&1; then
+    echo "===== Qt6 编译失败, 错误摘要 ====="
+    grep -E "error:|ninja: build stopped" /tmp/qt6-make.log | head -30 || true
+    echo "===== 最后 80 行 ====="
+    tail -80 /tmp/qt6-make.log
+    exit 1
+fi
 cmake --install .
 
 echo "===== 产物 ====="
