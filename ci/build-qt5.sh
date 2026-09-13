@@ -72,6 +72,8 @@ done
 echo "===== 补丁 6: mkspecs 注入静态 OpenSSL 路径 ====="
 cat >> mkspecs/android-clang/qmake.conf << EOF
 
+# NDK r27 无 GCC 时代工具链包装器, ranlib 用 llvm-ranlib
+QMAKE_RANLIB = $$NDK_LLVM_PATH/bin/llvm-ranlib
 # OpenSSL (static) for cross-compilation
 QMAKE_INCDIR += ${PREFIX}/include
 QMAKE_LIBDIR += ${PREFIX}/lib
