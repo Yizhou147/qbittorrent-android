@@ -223,7 +223,9 @@ jobs:
             case "$lib" in
               liblog.so|libdl.so|libm.so|libc.so|libz.so) continue ;;
             esac
-            if [ ! -f "$lib" ]; then
+            # NDK 工具链产物可能带 _arm64-v8a 后缀 (qb 4.x)
+            base="${lib%.so}"
+            if [ ! -f "$lib" ] && [ ! -f "${base}_arm64-v8a.so" ]; then
               echo "MISSING: $lib"
               missing=1
             fi
@@ -243,6 +245,9 @@ jobs:
           for lib in build-output/libQt*; do
             cp "$lib" "$JNILIBS/"
           done
+          # Qt Java 类 (JNI_OnLoad 注册 natives 时需要)
+          mkdir -p apk-project/app/libs
+          cp build-output/qt-java.jar apk-project/app/libs/QtAndroid.jar
           if [ -f build-output/libplugins_sqldrivers_qsqlite_arm64-v8a.so ]; then
             cp build-output/libplugins_sqldrivers_qsqlite_arm64-v8a.so "$JNILIBS/"
           fi
