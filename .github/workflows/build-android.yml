@@ -111,9 +111,6 @@ jobs:
       - name: Download build dependencies
         run: |
           mkdir -p docker-sources
-          # 下载助手: 直连优先 (runner 上最快), 失败时回退镜像 (ghfast.top)
-          fetch() { curl -fL --retry 3 --connect-timeout 60 -o "$2" "$1" || \
-                    curl -fL --retry 3 --connect-timeout 60 -o "$2" "https://ghfast.top/$1"; }
 
           # Download Android SDK Platform 34
           echo "Downloading SDK Platform 34..."
@@ -132,8 +129,8 @@ jobs:
 
           # Download OpenSSL
           echo "Downloading OpenSSL..."
-          fetch "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz" \
-            docker-sources/openssl-3.3.2.tar.gz || \
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/openssl-3.3.2.tar.gz \
+            "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz" || \
           curl -L --retry 3 --connect-timeout 60 -o docker-sources/openssl-3.3.2.tar.gz \
             "https://www.openssl.org/source/openssl-3.3.2.tar.gz"
 
@@ -144,8 +141,9 @@ jobs:
 
           # Download qBittorrent source
           echo "Downloading qBittorrent ${{ steps.params.outputs.qbt_ref }}..."
-          fetch "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/${{ steps.params.outputs.qbt_ref }}.tar.gz" \
-            docker-sources/qbittorrent.tar.gz
+          curl -L --retry 3 --connect-timeout 60 \
+            -o docker-sources/qbittorrent.tar.gz \
+            "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/${{ steps.params.outputs.qbt_ref }}.tar.gz"
 
           # libtorrent 必须用 git clone: release tarball 不含 deps/try_signal 等
           # git 子模块 (GitHub 自动生成的 archive 不带子模块)
@@ -157,8 +155,9 @@ jobs:
           # Download VueTorrent when the variant needs a specific version
           if [ -n "${{ steps.params.outputs.vuetorrent_url }}" ]; then
             echo "Downloading VueTorrent..."
-            fetch "${{ steps.params.outputs.vuetorrent_url }}" \
-              apk-project/app/src/main/assets/vuetorrent.zip
+            curl -L --retry 3 --connect-timeout 60 \
+              -o apk-project/app/src/main/assets/vuetorrent.zip \
+              "${{ steps.params.outputs.vuetorrent_url }}"
           fi
 
           echo "=== Verifying downloads ==="
