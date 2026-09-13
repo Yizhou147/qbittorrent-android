@@ -245,8 +245,8 @@ jobs:
           for lib in build-output/libQt*; do
             cp "$lib" "$JNILIBS/"
           done
-          # OpenSSL 动态库 (QtNetwork 运行时依赖)
-          for lib in build-output/libssl.so.* build-output/libcrypto.so.*; do
+          # OpenSSL 动态库 + qt6 TLS 插件 (运行时依赖)
+          for lib in build-output/libssl* build-output/libcrypto* build-output/libplugins_tls*; do
             [ -f "$lib" ] && cp "$lib" "$JNILIBS/"
           done
           if [ -f build-output/libplugins_sqldrivers_qsqlite_arm64-v8a.so ]; then
