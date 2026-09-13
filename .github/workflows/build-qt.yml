@@ -1,0 +1,95 @@
+name: Build Qt runtime libs
+
+# 独立的 Qt 构建工作流: 编译 Qt 运行时库 (qt5.15.2 / qt6.6.3), 产物上传为
+# artifact, 成功后把库文件提交进仓库 third-party/<qt_kind>/arm64-v8a/ 供主
+# 构建使用 (主构建不再编译 Qt)。
+
+on:
+  workflow_dispatch:
+    inputs:
+      qt_kind:
+        description: '要构建的 Qt 版本'
+        required: true
+        default: 'qt6'
+        type: choice
+        options:
+          - qt5
+          - qt6
+          - both
+
+concurrency:
+  group: build-qt-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          kind="${{ inputs.qt_kind }}"
+          case "$kind" in
+            qt5)  echo 'matrix={"kind":["qt5"]}' >> "$GITHUB_OUTPUT";;
+            qt6)  echo 'matrix={"kind":["qt6"]}' >> "$GITHUB_OUTPUT";;
+            both) echo 'matrix={"kind":["qt5","qt6"]}' >> "$GITHUB_OUTPUT";;
+            *)    echo 'matrix={"kind":["qt6"]}' >> "$GITHUB_OUTPUT";;
+          esac
+
+  build:
+    name: Build ${{ matrix.kind }} runtime libs
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve parameters
+        id: params
+        run: |
+          if [ "${{ matrix.kind }}" = "qt6" ]; then
+            echo "qt_version=6.6.3" >> $GITHUB_OUTPUT
+          else
+            echo "qt_version=5.15.2" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download dependencies
+        run: |
+          mkdir -p docker-sources
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/platform-34-ext7_r02.zip \
+            "https://dl.google.com/android/repository/platform-34-ext7_r02.zip"
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/build-tools_r34-linux.zip \
+            "https://dl.google.com/android/repository/build-tools_r34-linux.zip"
+          curl -L --retry 3 --connect-timeout 120 -o docker-sources/android-ndk-r27b-linux.zip \
+            "https://dl.google.com/android/repository/android-ndk-r27b-linux.zip"
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/openssl-3.3.2.tar.gz \
+            "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz" || \
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/openssl-3.3.2.tar.gz \
+            "https://www.openssl.org/source/openssl-3.3.2.tar.gz"
+
+      - name: Build Qt
+        run: |
+          docker build -f Dockerfile.qt -t qt-runtime:${{ matrix.kind }} \
+            --build-arg QT_KIND=${{ matrix.kind }} \
+            --build-arg QT_VERSION=${{ steps.params.outputs.qt_version }} \
+            .
+
+      - name: Extract runtime libs
+        run: |
+          mkdir -p qt-output
+          docker create --name qt-out-${{ matrix.kind }} qt-runtime:${{ matrix.kind }}
+          docker cp qt-out-${{ matrix.kind }}:/output/lib/. ./qt-output/
+          docker rm qt-out-${{ matrix.kind }}
+          ls -lh qt-output/
+
+      - name: Upload runtime libs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qt${{ matrix.kind }}-runtime-libs
+          path: qt-output/*.so
+          retention-days: 90
