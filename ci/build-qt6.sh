@@ -62,7 +62,7 @@ mkdir -p /build/qt6-build && cd /build/qt6-build
     -prefix ${QT_INSTALL} \
     -android-ndk ${ANDROID_NDK} \
     -android-sdk /opt/android-sdk \
-    -android-abi arm64-v8a \
+    -android-abis arm64-v8a \
     -qt-host-path ${HOST_QT} \
     -nomake examples -nomake tests \
     -no-gui -no-widgets -no-dbus -no-opengl -no-vulkan \

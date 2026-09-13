@@ -101,10 +101,12 @@ mkdir -p /build/qt5-build && cd /build/qt5-build
 
 echo "===== 编译 Qt5 (约 20-40 分钟) ====="
 if ! make -j$(nproc) > /tmp/qt5-make.log 2>&1; then
-    echo "===== Qt5 编译失败, 每个 Error 的上下文 ====="
-    grep -B8 -E "Error [0-9]+\]" /tmp/qt5-make.log | head -120 || true
-    echo "===== 含 error: 的行 ====="
-    grep -E "error:" /tmp/qt5-make.log | head -20 || true
+    echo "===== Qt5 编译失败, 每个 make Error 的上下文 ====="
+    grep -B8 -E "Error [0-9]+" /tmp/qt5-make.log | head -120 || true
+    echo "===== error:/not found 行 ====="
+    grep -E "error:|not found" /tmp/qt5-make.log | head -20 || true
+    echo "===== make 日志最后 40 行 ====="
+    tail -40 /tmp/qt5-make.log || true
     exit 1
 fi
 make install
