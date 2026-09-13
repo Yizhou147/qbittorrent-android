@@ -79,13 +79,14 @@ RUN QT_CUSTOM=/opt/qt${QT_KIND#qt}-custom && \
             if [ -f "$f" ]; then cp "$f" /output/lib/; break; fi; \
         done; \
     done && \
-    if [ -f "${QT_CUSTOM}/plugins/sqldrivers/libqsqlite.so" ]; then \
-        cp ${QT_CUSTOM}/plugins/sqldrivers/libqsqlite.so /output/lib/libplugins_sqldrivers_qsqlite_arm64-v8a.so; \
-    fi && \
+    for cand in libqsqlite_arm64-v8a.so libqsqlite.so libplugins_sqldrivers_qsqlite_arm64-v8a.so; do \
+        if [ -f "${QT_CUSTOM}/plugins/sqldrivers/$cand" ]; then \
+            cp "${QT_CUSTOM}/plugins/sqldrivers/$cand" /output/lib/libplugins_sqldrivers_qsqlite_arm64-v8a.so; \
+            break; \
+        fi; \
+    done; \
     if [ -d "${QT_CUSTOM}/plugins/tls" ]; then \
-        for f in ${QT_CUSTOM}/plugins/tls/*.so; do \
-            cp "$f" /output/lib/libplugins_tls_$(basename $f .so | sed s/libq//)_arm64-v8a.so; \
-        done; \
+        for f in ${QT_CUSTOM}/plugins/tls/*.so; do cp "$f" /output/lib/; done; \
     fi && \
     cp -L ${PREFIX}/lib/libssl.so /output/lib/libssl.so && \
     cp -L ${PREFIX}/lib/libcrypto.so /output/lib/libcrypto.so && \
