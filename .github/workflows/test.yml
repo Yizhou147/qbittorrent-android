@@ -13,6 +13,15 @@ on:
         description: '构建工作流 run id (emulator-smoke 使用, 留空自动取最近成功构建)'
         required: false
         default: ''
+      poll_attempts:
+        description: 'WebUI 轮询次数 (每次间隔10秒, 默认60)'
+        required: false
+        default: '60'
+      poll_interval:
+        description: 'WebUI 轮询间隔秒数 (默认10)'
+        required: false
+        default: '10'
+
   push:
     branches:
       - main
@@ -189,16 +198,19 @@ jobs:
       - name: Poll WebUI and verify qBittorrent version
         run: |
           EXPECTED="${{ matrix.version }}"
+          ATTEMPTS="${{ inputs.poll_attempts || '60' }}"
+          INTERVAL="${{ inputs.poll_interval || '10' }}"
+          echo "polling: $ATTEMPTS attempts x ${INTERVAL}s"
           OK=0
-          for i in $(seq 1 60); do
+          for i in $(seq 1 "$ATTEMPTS"); do
             CODE=$(curl -s -o /tmp/version.out -w '%{http_code}' --max-time 5 \
               http://localhost:18080/api/v2/app/version || echo 000)
             if [ "$CODE" = "200" ]; then
               OK=1
               break
             fi
-            echo "attempt $i: HTTP $CODE"
-            sleep 10
+            echo "attempt $i/$ATTEMPTS: HTTP $CODE"
+            sleep "$INTERVAL"
           done
           if [ "$OK" != "1" ]; then
             echo "=== WebUI 未在时限内就绪 ==="
