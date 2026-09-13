@@ -86,6 +86,19 @@ RUN mkdir -p ${ANDROID_HOME}/ndk && \
 
 ENV PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 
+# ===== 编译 OpenSSL =====
+WORKDIR /build
+RUN tar xzf /tmp/openssl-3.3.2.tar.gz && \
+    cd openssl-3.3.2 && \
+    export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
+    export PATH=${TOOLCHAIN}/bin:${PATH} && \
+    # shared: Qt 需要链接 libssl.so/libcrypto.so (qb 4.x 的 WebUI SSL 字段
+    # 无条件使用 QSslKey); 同时生成静态 .a 供 libtorrent 链接
+    ./Configure android-arm64 -D__ANDROID_API__=35 \
+        --prefix=${PREFIX} --openssldir=${PREFIX}/ssl \
+        shared no-tests no-ui-console -fPIC && \
+    make -j$(nproc) build_libs && make install_sw
+
 # ===== Qt 安装 =====
 # qt5: 源码重编 qtbase 5.15.2 (v1.1 已验证的 JNI 补丁配方, 见 ci/build-qt5.sh)
 # qt6: 源码重编 qtbase 6.6.3 for android (需 aqt 宿主 Qt6 提供 QT_HOST_PATH)
@@ -122,18 +135,6 @@ RUN if [ "$QT_KIND" = "qt6" ]; then \
     echo "${LRELEASE}" > /tmp/lrelease_path && \
     echo "${QT_CUSTOM}" > /tmp/qt_custom
 
-# ===== 编译 OpenSSL =====
-WORKDIR /build
-RUN tar xzf /tmp/openssl-3.3.2.tar.gz && \
-    cd openssl-3.3.2 && \
-    export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
-    export PATH=${TOOLCHAIN}/bin:${PATH} && \
-    # shared: Qt 需要链接 libssl.so/libcrypto.so (qb 4.x 的 WebUI SSL 字段
-    # 无条件使用 QSslKey); 同时生成静态 .a 供 libtorrent 链接
-    ./Configure android-arm64 -D__ANDROID_API__=35 \
-        --prefix=${PREFIX} --openssldir=${PREFIX}/ssl \
-        shared no-tests no-ui-console -fPIC && \
-    make -j$(nproc) build_libs && make install_sw
 
 # ===== 编译 Boost =====
 RUN tar xzf /tmp/${BOOST_TARBALL} && \
