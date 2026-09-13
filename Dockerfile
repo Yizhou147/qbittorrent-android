@@ -107,6 +107,14 @@ RUN if [ "$QT_KIND" = "qt6" ]; then \
     fi && \
     echo "QT_CMAKE_DIR=${QT_CMAKE_DIR}" && test -d "${QT_CMAKE_DIR}" && \
     echo "LRELEASE=${LRELEASE}" && test -x "${LRELEASE}" && \
+    QT_ROOT=$(dirname $(dirname $(dirname ${QT_CMAKE_DIR}))) && \
+    if [ "$QT_KIND" = "qt6" ]; then \
+        QT_JAR=${QT_ROOT}/jar/Qt6Android.jar; \
+    else \
+        QT_JAR=${QT_ROOT}/jar/QtAndroid.jar; \
+    fi && \
+    echo "QT_JAR=${QT_JAR}" && test -f "${QT_JAR}" && \
+    echo "${QT_JAR}" > /tmp/qt_jar_path && \
     echo "${QT_CMAKE_DIR}" > /tmp/qt_cmake_dir && \
     echo "${LRELEASE}" > /tmp/lrelease_path && \
     echo "${QT_HOST_PATH}" > /tmp/qt_host_path
@@ -266,6 +274,8 @@ RUN QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
     cp ${PREFIX}/lib/*.so /output/lib/ && \
     cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null; \
     ${STRIP} /output/lib/libqbt*.so /output/lib/libtorrent-rasterbar.so 2>/dev/null; \
+    # Qt 的 Java 类 jar: JNI_OnLoad 里 RegisterNatives 需要这些类, APK 必须包含
+    cp $(cat /tmp/qt_jar_path) /output/qt-java.jar && \
     ls -lh /output/lib/
 
 CMD ["echo", "Build complete. Copy /output/lib"]

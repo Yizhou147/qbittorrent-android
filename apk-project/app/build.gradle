@@ -43,6 +43,8 @@ android {
 }
 
 dependencies {
+    // Qt Android Java 类 (JNI_OnLoad RegisterNatives 必需), CI 构建时放入 libs/
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
     testImplementation 'junit:junit:4.13.2'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
