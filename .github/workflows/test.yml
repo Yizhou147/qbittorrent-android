@@ -190,7 +190,7 @@ jobs:
         run: |
           EXPECTED="${{ matrix.version }}"
           OK=0
-          for i in $(seq 1 90); do
+          for i in $(seq 1 60); do
             CODE=$(curl -s -o /tmp/version.out -w '%{http_code}' --max-time 5 \
               http://localhost:18080/api/v2/app/version || echo 000)
             if [ "$CODE" = "200" ]; then
