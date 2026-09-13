@@ -203,19 +203,20 @@ jobs:
           ATTEMPTS="${{ inputs.poll_attempts || '20' }}"
           INTERVAL="${{ inputs.poll_interval || '10' }}"
           echo "polling: $ATTEMPTS attempts x ${INTERVAL}s"
+          # 注意: adb forward 后 curl 的 Host 是 localhost:18080, qb 的 Host 头
+          # 校验会直接 401, 必须覆盖成应用实际监听的 localhost:8080。
+          # 应用默认 LocalHostAuth=false, 来自 127.0.0.1 的请求免认证。
           OK=0
           for i in $(seq 1 "$ATTEMPTS"); do
-            # qb 对 Host/Referer 有校验, 且 /version 需要登录态: 用 /auth/login 探活
-            CODE=$(curl -s -o /tmp/login.out -w '%{http_code}' --max-time 5 \
+            CODE=$(curl -s -o /tmp/version.out -w '%{http_code}' --max-time 5 \
+              -H "Host: localhost:8080" \
               -H "Referer: http://localhost:8080" \
-              -d "username=admin&password=adminadmin" \
-              -c /tmp/cookies.txt \
-              http://localhost:18080/api/v2/auth/login || echo 000)
-            if [ "$CODE" = "200" ] && grep -q "Ok." /tmp/login.out; then
+              http://localhost:18080/api/v2/app/version || echo 000)
+            if [ "$CODE" = "200" ]; then
               OK=1
               break
             fi
-            echo "attempt $i/$ATTEMPTS: login HTTP $CODE $(cat /tmp/login.out 2>/dev/null | head -1)"
+            echo "attempt $i/$ATTEMPTS: HTTP $CODE"
             sleep "$INTERVAL"
           done
           if [ "$OK" != "1" ]; then
@@ -223,9 +224,7 @@ jobs:
             adb shell "logcat -d | tail -100" || true
             exit 1
           fi
-          VERSION=$(curl -s -b /tmp/cookies.txt --max-time 5 \
-            -H "Referer: http://localhost:8080" \
-            http://localhost:18080/api/v2/app/version)
+          VERSION=$(cat /tmp/version.out)
           echo "WebUI 就绪, qBittorrent version: $VERSION"
           if [[ "$VERSION" != *"$EXPECTED"* ]]; then
             echo "ERROR: 期望版本 $EXPECTED, 实际 $VERSION"
