@@ -279,11 +279,8 @@ RUN QT_CUSTOM=$(cat /tmp/qt_custom) && \
     cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null; \
     cp ${PREFIX}/lib/*.so /output/lib/ && \
     cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null; \
-    # OpenSSL 动态库: soname 名 + qt5 链接用的 _arm64-v8a 别名
-    for so in ${PREFIX}/lib/libssl.so.3 ${PREFIX}/lib/libcrypto.so.3 \
-              ${PREFIX}/lib/libssl_arm64-v8a.so ${PREFIX}/lib/libcrypto_arm64-v8a.so; do \
-        cp -L "$so" /output/lib/ 2>/dev/null; \
-    done; \
+    # OpenSSL 动态库 (android shared 构建为无版本号, QtNetwork 运行时依赖)
+    cp ${PREFIX}/lib/libssl.so ${PREFIX}/lib/libcrypto.so /output/lib/; \
     # qt6 TLS 后端插件 (运行时 dlopen)
     if [ -d "${QT_CUSTOM}/plugins/tls" ]; then \
         for f in ${QT_CUSTOM}/plugins/tls/*.so; do \

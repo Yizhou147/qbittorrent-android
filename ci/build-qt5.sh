@@ -103,8 +103,9 @@ else
 fi
 
 echo "===== openssl ABI 后缀别名 (qt5 android 链接 -lssl_arm64-v8a) ====="
-ln -sf libssl.so.3 ${PREFIX}/lib/libssl_arm64-v8a.so
-ln -sf libcrypto.so.3 ${PREFIX}/lib/libcrypto_arm64-v8a.so
+# android 下 openssl shared 构建产物无版本号 (libssl.so/libcrypto.so)
+ln -sf libssl.so ${PREFIX}/lib/libssl_arm64-v8a.so
+ln -sf libcrypto.so ${PREFIX}/lib/libcrypto_arm64-v8a.so
 ls -la ${PREFIX}/lib/ | grep -E "ssl|crypto"
 
 echo "===== 配置 Qt5 ====="
