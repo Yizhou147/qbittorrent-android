@@ -1,0 +1,105 @@
+#!/bin/bash
+# 从源码编译 qtbase 5.15.2 for Android arm64 (v1.1 已验证的 JNI 补丁配方)
+#
+# 必须从源码重编的原因: 预编译 Qt 的 JNI_OnLoad 会 RegisterNatives 并在运行期
+# 触发依赖 Activity 上下文的 JNI 调用, 在本项目的非 Qt-Activity 进程里会崩溃。
+# 补丁后: 最小化 JNI_OnLoad (仅设置 JavaVM) + qjni.cpp 空指针守卫,
+# Qt 的 Android 集成安全惰性化 (qBittorrent nox 用不到 Activity 相关能力)。
+set -e
+
+export ANDROID_NDK=/opt/android-sdk/ndk/27.0.12077973
+export QT_INSTALL=/opt/qt5-custom
+export PREFIX=/opt/qbt-output
+export TOOLCHAIN=${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64
+
+echo "===== 下载 qtbase 5.15.2 源码 ====="
+cd /build
+if [ ! -d qtbase-everywhere-src-5.15.2 ]; then
+    curl -L --retry 3 -o /tmp/qtbase5.tar.xz \
+        "https://download.qt.io/archive/qt/5.15/5.15.2/submodules/qtbase-everywhere-src-5.15.2.tar.xz"
+    tar xf /tmp/qtbase5.tar.xz -C /build/
+fi
+cd /build/qtbase-everywhere-src-5.15.2
+
+echo "===== 补丁 1: qjni.cpp NULL javaVM 守卫 ====="
+JNI_FILE="src/corelib/kernel/qjni.cpp"
+sed -i 's/        QtAndroidPrivate::javaVM()->DetachCurrentThread();/        if (QtAndroidPrivate::javaVM()) QtAndroidPrivate::javaVM()->DetachCurrentThread();/' "$JNI_FILE"
+python3 - << 'PYEOF'
+with open('/build/qtbase-everywhere-src-5.15.2/src/corelib/kernel/qjni.cpp') as f:
+    c = f.read()
+old = 'JavaVM *vm = QtAndroidPrivate::javaVM();\n    const jint ret = vm->GetEnv'
+new = 'JavaVM *vm = QtAndroidPrivate::javaVM();\n    if (!vm) return;\n    const jint ret = vm->GetEnv'
+assert old in c, "qjni.cpp constructor pattern not found"
+c = c.replace(old, new)
+with open('/build/qtbase-everywhere-src-5.15.2/src/corelib/kernel/qjni.cpp', 'w') as f:
+    f.write(c)
+print("qjni.cpp patched")
+PYEOF
+
+echo "===== 补丁 2: 禁用 android 相关文件的 JNI_OnLoad ====="
+while IFS= read -r f; do
+    if grep -q "JNI_OnLoad" "$f" 2>/dev/null; then
+        echo "  rename: $f"
+        sed -i 's/JNI_OnLoad/JNI_OnLoad_Disabled/g' "$f"
+    fi
+done < <(find . -name "androidjnimain.cpp" -o -name "qjni*.cpp" -o -path "*android*" -name "*.cpp")
+
+echo "===== 补丁 3: qjnihelpers.cpp 添加最小 JNI_OnLoad (仅设置 JavaVM) ====="
+sed -i '/^JavaVM \*QtAndroidPrivate::javaVM()/i\
+extern "C" JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void * /*reserved*/)\
+{\
+    g_javaVM = vm;\
+    return JNI_VERSION_1_6;\
+}\
+' src/corelib/kernel/qjnihelpers.cpp
+grep -n "JNI_OnLoad" src/corelib/kernel/qjnihelpers.cpp | head -3
+
+echo "===== 补丁 4: qlogging.cpp Android 下禁用 execinfo ====="
+sed -i 's/__has_include(<execinfo.h>)/(__has_include(<execinfo.h>) \&\& !defined(Q_OS_ANDROID))/' \
+    src/corelib/global/qlogging.cpp 2>/dev/null || true
+
+echo "===== 补丁 5: 新版 clang 需要 <limits> ====="
+for f in src/corelib/global/qendian.h src/corelib/global/qfloat16.h \
+         src/corelib/text/qdoublescanformat_p.h src/corelib/tools/qduplicatetracker_p.h; do
+    if [ -f "$f" ] && ! grep -q '#include <limits>' "$f"; then
+        sed -i '1i #include <limits>' "$f"
+        echo "  limits: $f"
+    fi
+done
+
+echo "===== 补丁 6: mkspecs 注入静态 OpenSSL 路径 ====="
+cat >> mkspecs/android-clang/qmake.conf << EOF
+
+# OpenSSL (static) for cross-compilation
+QMAKE_INCDIR += ${PREFIX}/include
+QMAKE_LIBDIR += ${PREFIX}/lib
+OPENSSL_INCDIR = ${PREFIX}/include
+OPENSSL_LIBDIR = ${PREFIX}/lib
+OPENSSL_LIBS = -L${PREFIX}/lib -lssl -lcrypto -ldl
+EOF
+
+echo "===== 配置 Qt5 ====="
+mkdir -p /build/qt5-build && cd /build/qt5-build
+../qtbase-everywhere-src-5.15.2/configure \
+    -prefix ${QT_INSTALL} \
+    -platform linux-clang \
+    -xplatform android-clang \
+    -android-ndk ${ANDROID_NDK} \
+    -android-sdk /opt/android-sdk \
+    -android-arch arm64-v8a \
+    -no-gui -no-widgets -no-dbus -no-accessibility \
+    -no-opengl -no-vulkan \
+    -openssl-linked \
+    -no-libjpeg -no-libpng -no-harfbuzz -no-freetype \
+    -no-glib -no-mtdev -no-evdev -no-tslib -no-icu -no-cups -no-pch \
+    -nomake tests -nomake examples \
+    -opensource -confirm-license \
+    -c++std c++17 \
+    -shared 2>&1 | tail -30
+
+echo "===== 编译 Qt5 (约 20-40 分钟) ====="
+make -j$(nproc) 2>&1 | tail -10
+make install
+
+echo "===== 产物 ====="
+ls -la ${QT_INSTALL}/lib/libQt5*.so

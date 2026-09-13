@@ -86,38 +86,37 @@ RUN mkdir -p ${ANDROID_HOME}/ndk && \
 
 ENV PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 
-# ===== 安装预编译 Qt for Android (aqtinstall) =====
-# qt5: 5.15.2 android (multi-abi 包)  -> /opt/qt-android/5.15.2/android
-# qt6: 6.6.3 android_arm64_v8a       -> /opt/qt-android/6.6.3/android_arm64_v8a
-# qt6 交叉编译还需要宿主机 Qt6 (QT_HOST_PATH)
+# ===== Qt 安装 =====
+# qt5: 源码重编 qtbase 5.15.2 (v1.1 已验证的 JNI 补丁配方, 见 ci/build-qt5.sh)
+# qt6: 源码重编 qtbase 6.6.3 for android (需 aqt 宿主 Qt6 提供 QT_HOST_PATH)
+# 产物: /opt/qt5-custom 或 /opt/qt6-custom, 库命名 libQt{5,6}*.so (收集时改名)
+COPY ci/build-qt5.sh ci/build-qt6.sh /tmp/
 RUN if [ "$QT_KIND" = "qt6" ]; then \
-        aqt install-qt linux android ${QT_VERSION} android_arm64_v8a -O /opt/qt-android && \
         aqt install-qt linux desktop ${QT_VERSION} gcc_64 -O /opt/qt-host && \
-        QT_HOST_PATH=/opt/qt-host/${QT_VERSION}/gcc_64; \
+        echo "/opt/qt-host/${QT_VERSION}/gcc_64" > /tmp/qt_host_path; \
     else \
-        aqt install-qt linux android ${QT_VERSION} android -O /opt/qt-android; \
-        QT_HOST_PATH=; \
+        echo "" > /tmp/qt_host_path; \
+    fi
+
+RUN if [ "$QT_KIND" = "qt6" ]; then \
+        bash /tmp/build-qt6.sh; \
+    else \
+        bash /tmp/build-qt5.sh; \
     fi && \
     if [ "$QT_KIND" = "qt6" ]; then \
-        QT_CMAKE_DIR=/opt/qt-android/${QT_VERSION}/android_arm64_v8a/lib/cmake/Qt6; \
+        QT_CMAKE_DIR=/opt/qt6-custom/lib/cmake/Qt6; \
+        QT_CUSTOM=/opt/qt6-custom; \
         LRELEASE=/usr/lib/qt6/bin/lrelease; \
     else \
-        QT_CMAKE_DIR=/opt/qt-android/${QT_VERSION}/android/lib/cmake/Qt5; \
+        QT_CMAKE_DIR=/opt/qt5-custom/lib/cmake/Qt5; \
+        QT_CUSTOM=/opt/qt5-custom; \
         LRELEASE=/usr/lib/qt5/bin/lrelease; \
     fi && \
     echo "QT_CMAKE_DIR=${QT_CMAKE_DIR}" && test -d "${QT_CMAKE_DIR}" && \
     echo "LRELEASE=${LRELEASE}" && test -x "${LRELEASE}" && \
-    QT_ROOT=$(dirname $(dirname $(dirname ${QT_CMAKE_DIR}))) && \
-    if [ "$QT_KIND" = "qt6" ]; then \
-        QT_JAR=${QT_ROOT}/jar/Qt6Android.jar; \
-    else \
-        QT_JAR=${QT_ROOT}/jar/QtAndroid.jar; \
-    fi && \
-    echo "QT_JAR=${QT_JAR}" && test -f "${QT_JAR}" && \
-    echo "${QT_JAR}" > /tmp/qt_jar_path && \
     echo "${QT_CMAKE_DIR}" > /tmp/qt_cmake_dir && \
     echo "${LRELEASE}" > /tmp/lrelease_path && \
-    echo "${QT_HOST_PATH}" > /tmp/qt_host_path
+    echo "${QT_CUSTOM}" > /tmp/qt_custom
 
 # ===== 编译 OpenSSL =====
 WORKDIR /build
@@ -253,29 +252,27 @@ RUN export API=35 && \
     cmake --build . -j$(nproc) && cmake --install .
 
 # ===== 收集产物 (含 Qt 库和 sqlite 插件，供 APK jniLibs 使用) =====
-# 只打包 qbittorrent-nox 需要的 Qt 模块，避免整包 Qt 撑大 APK。
-# 注意 NDK 工具链会给目标加 _arm64-v8a 后缀: libqbt.so -> libqbt_arm64-v8a.so
-RUN QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
-    QT_ROOT=$(dirname $(dirname $(dirname ${QT_CMAKE_DIR}))) && \
+# 只打包 qbittorrent-nox 需要的 Qt 模块; 自定义编译产物名为 libQt*.so,
+# 统一改名为 *_arm64-v8a.so (与 v1.1 命名一致, Java 层扫描加载)
+RUN QT_CUSTOM=$(cat /tmp/qt_custom) && \
     mkdir -p ${PREFIX}/lib && \
     for m in Core Network Sql Xml; do \
-        cp ${QT_ROOT}/lib/libQt[56]${m}_arm64-v8a.so ${PREFIX}/lib/; \
+        cp ${QT_CUSTOM}/lib/libQt*${m}.so ${PREFIX}/lib/; \
     done && \
-    # qsqlite 插件: qb 4.6.7/5.2.3 的恢复数据存在 SQLite 里, 运行时必需。
-    # Qt5/Qt6 预编译包里文件名不同, 统一拷成扁平化命名 (与 v1.1 一致)
-    for f in libplugins_sqldrivers_qsqlite_arm64-v8a.so libqsqlite_arm64-v8a.so libqsqlite.so; do \
-        if [ -f "${QT_ROOT}/plugins/sqldrivers/$f" ]; then \
-            cp "${QT_ROOT}/plugins/sqldrivers/$f" ${PREFIX}/lib/libplugins_sqldrivers_qsqlite_arm64-v8a.so; \
-            break; \
-        fi; \
-    done; \
+    for f in ${PREFIX}/lib/libQt*.so; do \
+        case "$f" in \
+            *_arm64-v8a.so) ;; \
+            *) mv "$f" "${f%.so}_arm64-v8a.so" ;; \
+        esac; \
+    done && \
+    if [ -f "${QT_CUSTOM}/plugins/sqldrivers/libqsqlite.so" ]; then \
+        cp ${QT_CUSTOM}/plugins/sqldrivers/libqsqlite.so ${PREFIX}/lib/libplugins_sqldrivers_qsqlite_arm64-v8a.so; \
+    fi && \
     mkdir -p /output/lib && \
     cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null; \
     cp ${PREFIX}/lib/*.so /output/lib/ && \
     cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null; \
-    ${STRIP} /output/lib/libqbt*.so /output/lib/libtorrent-rasterbar.so 2>/dev/null; \
-    # Qt 的 Java 类 jar: JNI_OnLoad 里 RegisterNatives 以及运行期 JNI 调用需要, APK 必须包含
-    cp ${QT_ROOT}/jar/*.jar /output/lib/ && \
+    ${STRIP} /output/lib/libqbt*.so /output/lib/libtorrent-rasterbar.so /output/lib/libQt*.so 2>/dev/null; \
     ls -lh /output/lib/
 
 CMD ["echo", "Build complete. Copy /output/lib"]

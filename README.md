@@ -89,15 +89,21 @@
 - 在 cmake configure 之前编译所有 `.ts` 文件为 `.qm` 文件
 - 生成 QRC 文件，cmake 自动包含翻译资源（补丁将 LinguistTools 变为可选依赖）
 
-#### 5. JNI_OnLoad 返回 JNI_ERR（启动卡死，模拟器冒烟测试发现）
+#### 5. Qt Android 集成与 JNI 崩溃（真机闪退，模拟器冒烟测试定位）
 
 **问题**：预编译 Qt（5.15.2 与 6.6.3 均如此）的 `libQt*Core` 在 `System.loadLibrary` 时执行
-`JNI_OnLoad`，内部对 `org.qtproject.qt.android.QtNative` 做 `RegisterNatives`——APK 里没有
-Qt 的 Java 类时抛 `ClassNotFoundException`，`JNI_OnLoad` 返回 `JNI_ERR`，加载库失败，
-WebUI 永远不会启动（表象是卡在启动界面）。v1.1 通过本地重编 qtbase 打 JNI 补丁规避了此问题。
+`JNI_OnLoad`，对本项目这种非 Qt-Activity 进程有两个层面的崩溃：
+1. APK 里没有 Qt 的 Java 类时，`JNI_OnLoad` 内 `RegisterNatives` 抛
+   `ClassNotFoundException` 返回 `JNI_ERR`，库加载失败，WebUI 永远起不来；
+2. 若把 Qt 的 Java 类打进 APK 让 `JNI_OnLoad` 成功，Qt 的 Android 帮手代码被真正激活，
+   运行期会执行依赖 Activity/ClassLoader 的 JNI 调用，在真机上以
+   `GetStaticMethodID(java_class == null)` 等 abort 闪退。
 
-**解决方案**：把 Qt Android 包自带的 Java 类 jar（`QtAndroid.jar` / `Qt6Android.jar`）打包进
-APK（`app/libs/`），JNI_OnLoad 注册 natives 即可成功。
+**解决方案**（v1.1 已验证的路线）：Docker 内**从源码重编 qtbase**（qt5.15.2 / qt6.6.3），
+补丁见 `ci/build-qt5.sh` / `ci/build-qt6.sh`：
+- `JNI_OnLoad` 最小化，仅设置 JavaVM 指针、不注册任何 natives；
+- `qjni.cpp`/`qjnienvironment.cpp` 增加 NULL javaVM 守卫；
+- Qt 的 Android 集成在 nox 进程里安全惰性化（qbittorrent-nox 用不到 Activity 能力）。
 
 #### 6. Qt6 资源 zstd 压缩（qb 5.x）
 
