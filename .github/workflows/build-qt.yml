@@ -61,17 +61,14 @@ jobs:
       - name: Download dependencies
         run: |
           mkdir -p docker-sources
-          # 下载助手: 直连优先 (runner 上最快), 失败时回退镜像 (ghfast.top)
-          fetch() { curl -fL --retry 3 --connect-timeout 60 -o "$2" "$1" || \
-                    curl -fL --retry 3 --connect-timeout 60 -o "$2" "https://ghfast.top/$1"; }
           curl -L --retry 3 --connect-timeout 60 -o docker-sources/platform-34-ext7_r02.zip \
             "https://dl.google.com/android/repository/platform-34-ext7_r02.zip"
           curl -L --retry 3 --connect-timeout 60 -o docker-sources/build-tools_r34-linux.zip \
             "https://dl.google.com/android/repository/build-tools_r34-linux.zip"
           curl -L --retry 3 --connect-timeout 120 -o docker-sources/android-ndk-r27b-linux.zip \
             "https://dl.google.com/android/repository/android-ndk-r27b-linux.zip"
-          fetch "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz" \
-            docker-sources/openssl-3.3.2.tar.gz || \
+          curl -L --retry 3 --connect-timeout 60 -o docker-sources/openssl-3.3.2.tar.gz \
+            "https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz" || \
           curl -L --retry 3 --connect-timeout 60 -o docker-sources/openssl-3.3.2.tar.gz \
             "https://www.openssl.org/source/openssl-3.3.2.tar.gz"
 
