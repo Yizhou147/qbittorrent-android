@@ -88,13 +88,13 @@ mkdir -p /build/qt5-build && cd /build/qt5-build
     -android-arch arm64-v8a \
     -no-gui -no-widgets -no-dbus -no-accessibility \
     -no-opengl -no-vulkan \
-    -openssl-linked \
+    -no-openssl \
     -no-libjpeg -no-libpng -no-harfbuzz -no-freetype \
     -no-glib -no-mtdev -no-evdev -no-tslib -no-icu -no-cups -no-pch \
     -nomake tests -nomake examples \
     -opensource -confirm-license \
     -c++std c++17 \
-    -shared 2>&1 | tail -30
+    -shared 2>&1 | tail -60
 
 echo "===== 编译 Qt5 (约 20-40 分钟) ====="
 make -j$(nproc) 2>&1 | tail -10
