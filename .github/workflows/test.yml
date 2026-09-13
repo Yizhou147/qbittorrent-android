@@ -8,6 +8,11 @@ name: Tests
 
 on:
   workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: '构建工作流 run id (emulator-smoke 使用, 留空自动取最近成功构建)'
+        required: false
+        default: ''
   push:
     branches:
       - main
@@ -107,7 +112,7 @@ jobs:
   emulator-smoke:
     name: Emulator smoke (qBittorrent ${{ matrix.version }})
     # 仅在构建工作流成功完成后触发 (需要其 APK 产物)
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    if: (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') || github.event_name == 'workflow_dispatch'
     permissions:
       actions: read
     strategy:
@@ -127,7 +132,12 @@ jobs:
 
       - name: Download APK artifact from build workflow
         run: |
-          RUN_ID=${{ github.event.workflow_run.id }}
+          RUN_ID="${{ inputs.build_run_id }}"
+          if [ -z "$RUN_ID" ]; then
+            RUN_ID=$(gh run list -R "${{ github.repository }}" --workflow build-android.yml \
+              --status success --limit 1 --json databaseId --jq '.[0].databaseId')
+          fi
+          echo "Using build run: $RUN_ID"
           gh run download "$RUN_ID" -R "${{ github.repository }}" \
             -n "qbittorrent-android-qb${{ matrix.version }}" -D apk
           ls -lh apk/
