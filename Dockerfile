@@ -274,8 +274,8 @@ RUN QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
     cp ${PREFIX}/lib/*.so /output/lib/ && \
     cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null; \
     ${STRIP} /output/lib/libqbt*.so /output/lib/libtorrent-rasterbar.so 2>/dev/null; \
-    # Qt 的 Java 类 jar: JNI_OnLoad 里 RegisterNatives 需要这些类, APK 必须包含
-    cp $(cat /tmp/qt_jar_path) /output/lib/qt-java.jar && \
+    # Qt 的 Java 类 jar: JNI_OnLoad 里 RegisterNatives 以及运行期 JNI 调用需要, APK 必须包含
+    cp ${QT_ROOT}/jar/*.jar /output/lib/ && \
     ls -lh /output/lib/
 
 CMD ["echo", "Build complete. Copy /output/lib"]
