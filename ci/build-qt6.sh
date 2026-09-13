@@ -8,6 +8,8 @@ set -eo pipefail
 export ANDROID_NDK=/opt/android-sdk/ndk/27.0.12077973
 export QT_INSTALL=/opt/qt6-custom
 export TOOLCHAIN=${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export PATH=${JAVA_HOME}/bin:${TOOLCHAIN}/bin:${PATH}
 HOST_QT=$(cat /tmp/qt_host_path)
 
 echo "===== 下载 qtbase 6.6.3 源码 ====="

@@ -11,6 +11,9 @@ export ANDROID_NDK=/opt/android-sdk/ndk/27.0.12077973
 export QT_INSTALL=/opt/qt5-custom
 export PREFIX=/opt/qbt-output
 export TOOLCHAIN=${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64
+# QtNetwork 的 jar 步骤用 javac -source 7, JDK 17 不支持
+export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export PATH=${JAVA_HOME}/bin:${TOOLCHAIN}/bin:${PATH}
 
 echo "===== 下载 qtbase 5.15.2 源码 ====="
 cd /build
