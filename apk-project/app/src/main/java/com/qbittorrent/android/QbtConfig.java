@@ -82,13 +82,24 @@ final class QbtConfig {
             content = replaceConfigValue(content, "General\\Locale=", "General\\Locale=zh_CN");
 
             // 如果某个 key 不存在，在合适的位置追加
+            if (!content.contains("Session\\Port=")) {
+                content = "[BitTorrent]\nSession\\Port=" + SESSION_PORT + "\n" + content;
+            }
             if (!content.contains("WebUI\\RootFolder=")) {
-                content = content.replace("WebUI\\Port=" + port,
-                        "WebUI\\Port=" + port + "\nWebUI\\RootFolder=" + altUIPath);
+                if (content.contains("WebUI\\Port=" + port)) {
+                    content = content.replace("WebUI\\Port=" + port,
+                            "WebUI\\Port=" + port + "\nWebUI\\RootFolder=" + altUIPath);
+                } else {
+                    content = "[Preferences]\nWebUI\\RootFolder=" + altUIPath + "\n" + content;
+                }
             }
             if (!content.contains("WebUI\\AlternativeUIEnabled=")) {
-                content = content.replace("WebUI\\RootFolder=" + altUIPath,
-                        "WebUI\\RootFolder=" + altUIPath + "\nWebUI\\AlternativeUIEnabled=" + (useAltUI ? "true" : "false"));
+                if (content.contains("WebUI\\RootFolder=" + altUIPath)) {
+                    content = content.replace("WebUI\\RootFolder=" + altUIPath,
+                            "WebUI\\RootFolder=" + altUIPath + "\nWebUI\\AlternativeUIEnabled=" + (useAltUI ? "true" : "false"));
+                } else {
+                    content = "[Preferences]\nWebUI\\AlternativeUIEnabled=" + (useAltUI ? "true" : "false") + "\n" + content;
+                }
             }
             if (!content.contains("Downloads\\SavePath=")) {
                 content = "[Preferences]\nDownloads\\SavePath=" + downloadPath + "\n" + content;

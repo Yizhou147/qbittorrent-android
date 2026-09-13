@@ -111,6 +111,20 @@
 
 推送 `v*` tag 会自动构建全部三个版本。
 
+## 自动化测试
+
+`test.yml` 工作流（与构建分开运行）：
+
+1. **patch-check**：对 4.3.9 / 4.6.7 / 5.2.3 的官方源码试打移植补丁，断言关键标记
+   （共享库化、JNI 桥接、翻译可选化、rcc `--no-zstd`），防止升级版本时补丁失效
+2. **unit-tests**：JVM 单元测试（`./gradlew testReleaseUnitTest`），覆盖
+   `QbtConfig` 的配置写入/改写/端口校验逻辑
+3. **emulator-smoke**：构建工作流成功后自动触发，在 Android 30 模拟器（x86_64 +
+   ARM 指令翻译）安装 APK，通过 `adb forward` 轮询本机 WebUI 端口并断言
+   `/api/v2/app/version` 返回对应 qBittorrent 版本号；失败时上传 logcat
+
+触发条件：push/PR 到 main 时跑 1、2；构建工作流完成后跑 3。
+
 ### 方式二：本地 Docker 构建
 
 #### 环境要求
