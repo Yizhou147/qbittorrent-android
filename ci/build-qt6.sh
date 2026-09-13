@@ -60,7 +60,6 @@ echo "===== 配置 Qt6 ====="
 mkdir -p /build/qt6-build && cd /build/qt6-build
 ../qtbase-everywhere-src-6.6.3/configure \
     -prefix ${QT_INSTALL} \
-    -platform linux \
     -android-ndk ${ANDROID_NDK} \
     -android-sdk /opt/android-sdk \
     -android-arch arm64-v8a \
@@ -68,7 +67,7 @@ mkdir -p /build/qt6-build && cd /build/qt6-build
     -nomake examples -nomake tests \
     -no-gui -no-widgets -no-dbus -no-opengl -no-vulkan \
     -no-openssl \
-    -shared 2>&1 | tail -30
+    -shared 2>&1 | tail -60
 
 echo "===== 编译 Qt6 (约 40-60 分钟) ====="
 cmake --build . -j$(nproc) 2>&1 | tail -10
