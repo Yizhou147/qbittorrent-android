@@ -18,10 +18,12 @@ RUN (sed -i 's|http://archive.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/
      sed -i 's|http://security.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/sources.list) || \
     (sed -i 's|http://mirrors.ustc.edu.cn|http://archive.ubuntu.com|g' /etc/apt/sources.list; true)
 
+# qt6 构建需要 JDK 17; qt5 的 jar 步骤用 javac -source 7, 需要 JDK 8
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl wget unzip tar p7zip-full python3 python3-pip \
     build-essential cmake ninja-build pkg-config \
     clang perl qttools5-dev-tools qt6-l10n-tools \
+    openjdk-17-jdk-headless openjdk-8-jdk-headless \
     && rm -rf /var/lib/apt/lists/* \
     && pip3 install --no-cache-dir aqtinstall
 
