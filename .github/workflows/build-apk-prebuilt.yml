@@ -1,0 +1,64 @@
+name: Build APK (prebuilt native libs)
+
+# 方案A: 使用仓库 jniLibs 中已验证可用的 v1.1 原生库 (Qt5 + libqbt + libtorrent
+# + openssl), 不做任何原生编译, 只打 APK。用于快速产出确定可用的 4.6.7。
+# 原生库全量重编见 build-android.yml / build-qt.yml (方案B)。
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'APK 版本后缀 (默认 prebuilt)'
+        required: false
+        default: 'prebuilt'
+
+concurrency:
+  group: prebuilt-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build APK from prebuilt libs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify prebuilt libs
+        run: |
+          JNILIBS=apk-project/app/src/main/jniLibs/arm64-v8a
+          for f in libqbt.so libtorrent-rasterbar.so libc++_shared.so \
+                   libQt5Core_arm64-v8a.so libQt5Network_arm64-v8a.so \
+                   libQt5Sql_arm64-v8a.so libQt5Xml_arm64-v8a.so \
+                   libssl.so libcrypto.so; do
+            test -f "$JNILIBS/$f" || { echo "缺少 $f"; exit 1; }
+          done
+          ls -lh "$JNILIBS"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Build APK
+        run: |
+          cd apk-project
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Rename APK
+        run: |
+          mv apk-project/app/build/outputs/apk/release/app-release.apk \
+             qbittorrent-android-qb4.6.7-${{ inputs.version_tag }}.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: qbittorrent-android-qb4.6.7
+          path: qbittorrent-android-qb4.6.7-${{ inputs.version_tag }}.apk
+          retention-days: 90
