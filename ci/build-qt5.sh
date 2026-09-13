@@ -88,6 +88,20 @@ OPENSSL_LIBDIR = ${PREFIX}/lib
 OPENSSL_LIBS = -L${PREFIX}/lib -lssl -lcrypto -ldl
 EOF
 
+echo "===== openssl 链接自检 (诊断) ====="
+cat > /tmp/ossltest.cpp << 'EOFCPP'
+#include <openssl/ssl.h>
+#include <openssl/opensslv.h>
+int main() { SSL_free(nullptr); return OPENSSL_VERSION_NUMBER > 0 ? 0 : 1; }
+EOFCPP
+if ${TOOLCHAIN}/bin/aarch64-linux-android24-clang++ /tmp/ossltest.cpp \
+    -I${PREFIX}/include -L${PREFIX}/lib -lssl -lcrypto -ldl -o /tmp/ossltest 2>/tmp/ossltest.err; then
+    echo "openssl 手动链接 OK"
+else
+    echo "openssl 手动链接失败:"
+    head -20 /tmp/ossltest.err
+fi
+
 echo "===== 配置 Qt5 ====="
 # qt5 configure 的 openssl 探测测试读取 OPENSSL_LIBS 环境变量
 export OPENSSL_LIBS="-L${PREFIX}/lib -lssl -lcrypto -ldl"
