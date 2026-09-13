@@ -30,7 +30,7 @@ end = c.index('}', c.rindex('return JNI_VERSION_1_6;', start)) + 1
 minimal = '''JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
 {
     Q_UNUSED(reserved);
-    QtAndroidPrivate::setJavaVM(vm);
+    g_javaVM = vm;
     return JNI_VERSION_1_6;
 }'''
 c = c[:start] + minimal + c[end:]

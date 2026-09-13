@@ -59,9 +59,12 @@ sed -i 's/__has_include(<execinfo.h>)/(__has_include(<execinfo.h>) \&\& !defined
     src/corelib/global/qlogging.cpp 2>/dev/null || true
 
 echo "===== 补丁 5: 新版 clang/libstdc++ 需要 <limits> ====="
+# v1.1 配方: 只处理使用 std::numeric_limits 的文件, 插到第一个 #include 之前;
+# 跳过 qcompilerdetection.h (bootstrap 阶段特殊编译, 加了会 'limits' file not found)
 grep -rl "std::numeric_limits" src/ 2>/dev/null | while IFS= read -r f; do
+    case "$f" in *qcompilerdetection.h) continue ;; esac
     if ! grep -q '#include <limits>' "$f"; then
-        sed -i '1i #include <limits>' "$f"
+        sed -i '0,/#include/s//#include <limits>\n&/' "$f"
         echo "  limits: $f"
     fi
 done
