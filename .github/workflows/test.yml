@@ -141,35 +141,59 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download APK artifact from build workflow
+      - name: Resolve build run
+        id: build
         run: |
           RUN_ID="${{ inputs.build_run_id }}"
+          # 优先用触发本次测试的那次构建, 避免并发时取到别的 run
+          if [ -z "$RUN_ID" ] && [ "${{ github.event_name }}" = "workflow_run" ]; then
+            RUN_ID="${{ github.event.workflow_run.id }}"
+          fi
           if [ -z "$RUN_ID" ]; then
             RUN_ID=$(gh run list -R "${{ github.repository }}" --workflow build-android.yml \
               --status success --limit 1 --json databaseId --jq '.[0].databaseId')
           fi
-          echo "Using build run: $RUN_ID"
-          gh run download "$RUN_ID" -R "${{ github.repository }}" \
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          # 构建 run 里没有本变体时 (例如只构建了 5.2.3) 跳过本变体, 而不是整轮报错
+          if gh run view "$RUN_ID" -R "${{ github.repository }}" --json jobs --jq '.jobs[].name' \
+               | grep -qF "qBittorrent ${{ matrix.version }}"; then
+            echo "has_apk=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_apk=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::构建 run $RUN_ID 不含 qBittorrent ${{ matrix.version }}, 跳过本变体"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Download APK artifact from build workflow
+        if: steps.build.outputs.has_apk == 'true'
+        run: |
+          echo "Using build run: ${{ steps.build.outputs.run_id }}"
+          gh run download "${{ steps.build.outputs.run_id }}" -R "${{ github.repository }}" \
             -n "qbittorrent-android-qb${{ matrix.version }}" -D apk
           ls -lh apk/
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Enable KVM
+        if: steps.build.outputs.has_apk == 'true'
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
       - name: Setup Android SDK
+        if: steps.build.outputs.has_apk == 'true'
         uses: android-actions/setup-android@v3
 
       - name: Install emulator and system image
+        if: steps.build.outputs.has_apk == 'true'
         run: |
           sdkmanager --install "platform-tools" "emulator" "system-images;android-30;google_apis;x86_64" > /dev/null
           echo "y" | sdkmanager --licenses > /dev/null || true
 
       - name: Start emulator
+        if: steps.build.outputs.has_apk == 'true'
         run: |
           # avdmanager 与 emulator 的 AVD home 可能不一致, 显式统一
           export ANDROID_AVD_HOME=$HOME/.android/avd
@@ -187,6 +211,7 @@ jobs:
           echo "Emulator booted"
 
       - name: Install APK and start app
+        if: steps.build.outputs.has_apk == 'true'
         run: |
           adb install -r apk/*.apk
           # 预授权存储权限, 避免 MainActivity 启动时被系统对话框/设置页打断
@@ -198,6 +223,7 @@ jobs:
           sleep 15
 
       - name: Poll WebUI and verify qBittorrent version
+        if: steps.build.outputs.has_apk == 'true'
         run: |
           EXPECTED="${{ matrix.version }}"
           ATTEMPTS="${{ inputs.poll_attempts || '20' }}"
@@ -232,14 +258,14 @@ jobs:
           fi
 
       - name: Collect logs on failure
-        if: failure()
+        if: failure() && steps.build.outputs.has_apk == 'true'
         run: |
           adb shell "logcat -d" > logcat.txt || true
           adb shell "cat /data/data/com.qbittorrent.android/files/*.txt" >> logcat.txt || true
           tail -300 logcat.txt
 
       - name: Upload failure logs
-        if: failure()
+        if: failure() && steps.build.outputs.has_apk == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: emulator-logs-qb${{ matrix.version }}
