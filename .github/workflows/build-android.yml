@@ -239,19 +239,16 @@ jobs:
           mkdir -p "$JNILIBS"
           # 清掉旧库, 防止不同变体间混入过期的 Qt5/Qt6 残留
           rm -f "$JNILIBS"/lib*.so
+          # 新编译的 libqbt/libtorrent/libc++_shared
           cp $(ls build-output/libqbt*.so | head -1) "$JNILIBS/libqbt.so"
           cp build-output/libtorrent-rasterbar.so "$JNILIBS/"
           cp build-output/libc++_shared.so "$JNILIBS/"
-          for lib in build-output/libQt*; do
+          # Qt 运行时库 + openssl + 插件: 来自仓库 third-party/<qt_kind>/ (build-qt.yml 产物)
+          THIRD=third-party/${{ steps.params.outputs.qt_kind }}/arm64-v8a
+          test -d "$THIRD" || { echo "缺少 $THIRD (需先运行 Build Qt runtime libs 并提交产物)"; exit 1; }
+          for lib in "$THIRD"/*.so; do
             cp "$lib" "$JNILIBS/"
           done
-          # OpenSSL 动态库 + qt6 TLS 插件 (运行时依赖)
-          for lib in build-output/libssl* build-output/libcrypto* build-output/libplugins_tls*; do
-            [ -f "$lib" ] && cp "$lib" "$JNILIBS/"
-          done
-          if [ -f build-output/libplugins_sqldrivers_qsqlite_arm64-v8a.so ]; then
-            cp build-output/libplugins_sqldrivers_qsqlite_arm64-v8a.so "$JNILIBS/"
-          fi
 
           echo "=== jniLibs contents ==="
           ls -lh "$JNILIBS"

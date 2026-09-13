@@ -99,42 +99,32 @@ RUN tar xzf /tmp/openssl-3.3.2.tar.gz && \
         shared no-tests no-ui-console -fPIC && \
     make -j$(nproc) build_libs && make install_sw
 
-# ===== Qt 安装 =====
-# qt5: 源码重编 qtbase 5.15.2 (v1.1 已验证的 JNI 补丁配方, 见 ci/build-qt5.sh)
-# qt6: 源码重编 qtbase 6.6.3 for android (需 aqt 宿主 Qt6 提供 QT_HOST_PATH)
-# 产物: /opt/qt5-custom 或 /opt/qt6-custom, 库命名 libQt{5,6}*.so (收集时改名)
-COPY ci/build-qt5.sh ci/build-qt6.sh /tmp/
+# ===== 安装 Qt for Android (aqtinstall) =====
+# 仅作为 libqbt 的编译期头文件/CMake 配置 (Qt 5.15.2 与 6.6.3 同版本 ABI 兼容);
+# 运行时 Qt 库来自仓库 third-party/<qt_kind>/ (build-qt.yml 的产物), 不在此编译。
+# qt6 交叉编译/配置需要宿主 Qt6 (QT_HOST_PATH)。
 RUN if [ "$QT_KIND" = "qt6" ]; then \
         aqt_ok=0; \
         for i in 1 2 3 4; do \
+            aqt install-qt linux android ${QT_VERSION} android_arm64_v8a -O /opt/qt-android && \
             aqt install-qt linux desktop ${QT_VERSION} gcc_64 -O /opt/qt-host && aqt_ok=1 && break; \
             echo "aqt retry $i"; sleep 15; \
         done; \
-        [ "$aqt_ok" = "1" ] && echo "/opt/qt-host/${QT_VERSION}/gcc_64" > /tmp/qt_host_path; \
-    else \
-        echo "" > /tmp/qt_host_path; \
-    fi
-
-RUN if [ "$QT_KIND" = "qt6" ]; then \
-        bash /tmp/build-qt6.sh; \
-    else \
-        bash /tmp/build-qt5.sh; \
-    fi && \
-    if [ "$QT_KIND" = "qt6" ]; then \
-        QT_CMAKE_DIR=/opt/qt6-custom/lib/cmake/Qt6; \
-        QT_CUSTOM=/opt/qt6-custom; \
+        [ "$aqt_ok" = "1" ] || exit 1; \
+        QT_CMAKE_DIR=/opt/qt-android/${QT_VERSION}/android_arm64_v8a/lib/cmake/Qt6; \
         LRELEASE=/usr/lib/qt6/bin/lrelease; \
+        QT_HOST_PATH=/opt/qt-host/${QT_VERSION}/gcc_64; \
     else \
-        QT_CMAKE_DIR=/opt/qt5-custom/lib/cmake/Qt5; \
-        QT_CUSTOM=/opt/qt5-custom; \
+        aqt install-qt linux android ${QT_VERSION} android -O /opt/qt-android; \
+        QT_CMAKE_DIR=/opt/qt-android/${QT_VERSION}/android/lib/cmake/Qt5; \
         LRELEASE=/usr/lib/qt5/bin/lrelease; \
+        QT_HOST_PATH=; \
     fi && \
     echo "QT_CMAKE_DIR=${QT_CMAKE_DIR}" && test -d "${QT_CMAKE_DIR}" && \
     echo "LRELEASE=${LRELEASE}" && test -x "${LRELEASE}" && \
     echo "${QT_CMAKE_DIR}" > /tmp/qt_cmake_dir && \
     echo "${LRELEASE}" > /tmp/lrelease_path && \
-    echo "${QT_CUSTOM}" > /tmp/qt_custom
-
+    echo "${QT_HOST_PATH}" > /tmp/qt_host_path
 
 # ===== 编译 Boost =====
 RUN tar xzf /tmp/${BOOST_TARBALL} && \
@@ -258,36 +248,12 @@ RUN export API=35 && \
         -DLibtorrentRasterbar_DIR=${PREFIX}/lib/cmake/LibtorrentRasterbar && \
     cmake --build . -j$(nproc) && cmake --install .
 
-# ===== 收集产物 (含 Qt 库和 sqlite 插件，供 APK jniLibs 使用) =====
-# 只打包 qbittorrent-nox 需要的 Qt 模块; 自定义编译产物名为 libQt*.so,
-# 统一改名为 *_arm64-v8a.so (与 v1.1 命名一致, Java 层扫描加载)
-RUN QT_CUSTOM=$(cat /tmp/qt_custom) && \
-    mkdir -p ${PREFIX}/lib && \
-    for m in Core Network Sql Xml; do \
-        cp ${QT_CUSTOM}/lib/libQt*${m}.so ${PREFIX}/lib/; \
-    done && \
-    for f in ${PREFIX}/lib/libQt*.so; do \
-        case "$f" in \
-            *_arm64-v8a.so) ;; \
-            *) mv "$f" "${f%.so}_arm64-v8a.so" ;; \
-        esac; \
-    done && \
-    if [ -f "${QT_CUSTOM}/plugins/sqldrivers/libqsqlite.so" ]; then \
-        cp ${QT_CUSTOM}/plugins/sqldrivers/libqsqlite.so ${PREFIX}/lib/libplugins_sqldrivers_qsqlite_arm64-v8a.so; \
-    fi && \
-    mkdir -p /output/lib && \
+# ===== 收集产物 (Qt 运行时库由工作流从仓库 third-party/ 提供, 不在此构建) =====
+RUN mkdir -p /output/lib && \
     cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null; \
-    cp ${PREFIX}/lib/*.so /output/lib/ && \
+    cp ${PREFIX}/lib/libqbt*.so ${PREFIX}/lib/libtorrent-rasterbar.so /output/lib/ && \
     cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null; \
-    # OpenSSL 动态库 (android shared 构建为无版本号, QtNetwork 运行时依赖)
-    cp ${PREFIX}/lib/libssl.so ${PREFIX}/lib/libcrypto.so /output/lib/; \
-    # qt6 TLS 后端插件 (运行时 dlopen)
-    if [ -d "${QT_CUSTOM}/plugins/tls" ]; then \
-        for f in ${QT_CUSTOM}/plugins/tls/*.so; do \
-            cp "$f" /output/lib/libplugins_tls_$(basename $f .so | sed s/libq//)_arm64-v8a.so; \
-        done; \
-    fi; \
-    ${STRIP} /output/lib/libqbt*.so /output/lib/libtorrent-rasterbar.so /output/lib/libQt*.so 2>/dev/null; \
+    ${STRIP} /output/lib/libqbt*.so /output/lib/libtorrent-rasterbar.so 2>/dev/null; \
     ls -lh /output/lib/
 
 CMD ["echo", "Build complete. Copy /output/lib"]

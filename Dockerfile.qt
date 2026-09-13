@@ -1,0 +1,91 @@
+# 独立的 Qt 运行时库构建 (build-qt.yml 使用)
+# 产物: /output/lib/*.so  → 上传为 artifact, 提交进仓库 third-party/<qt_kind>/
+#
+# 与主构建分离的原因: Qt 编译耗时长且调试迭代多, 编译成功后产物入库复用,
+# 主构建只编译 libqbt/libtorrent (用 aqt 头文件), 快速且稳定。
+FROM ubuntu:22.04
+
+ARG QT_KIND=qt5
+ARG QT_VERSION=5.15.2
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV ANDROID_HOME=/opt/android-sdk
+ENV ANDROID_NDK=${ANDROID_HOME}/ndk/27.0.12077973
+ENV PREFIX=/opt/qbt-output
+ENV TOOLCHAIN=${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64
+
+RUN (sed -i 's|http://archive.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/sources.list && \
+     sed -i 's|http://security.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/sources.list) || \
+    (sed -i 's|http://mirrors.ustc.edu.cn|http://archive.ubuntu.com|g' /etc/apt/sources.list; true)
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl wget unzip tar p7zip-full python3 python3-pip \
+    build-essential cmake ninja-build pkg-config \
+    clang perl qttools5-dev-tools qt6-l10n-tools \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --no-cache-dir aqtinstall
+
+# Android SDK/NDK
+COPY docker-sources/platform-34-ext7_r02.zip /tmp/
+RUN mkdir -p ${ANDROID_HOME}/platforms && unzip -q /tmp/platform-34-ext7_r02.zip -d ${ANDROID_HOME}/platforms/
+COPY docker-sources/build-tools_r34-linux.zip /tmp/
+RUN mkdir -p ${ANDROID_HOME}/build-tools/34.0.0 /tmp/bt-extract && \
+    unzip -q /tmp/build-tools_r34-linux.zip -d /tmp/bt-extract && \
+    mv /tmp/bt-extract/*/* ${ANDROID_HOME}/build-tools/34.0.0/ 2>/dev/null; \
+    mv /tmp/bt-extract/* ${ANDROID_HOME}/build-tools/34.0.0/ 2>/dev/null || true; \
+    rm -rf /tmp/bt-extract
+COPY docker-sources/android-ndk-r27b-linux.zip /tmp/
+RUN mkdir -p ${ANDROID_HOME}/ndk && \
+    unzip -q /tmp/android-ndk-r27b-linux.zip -d /tmp/ndk-extract && \
+    mv /tmp/ndk-extract/android-ndk-r27b ${ANDROID_HOME}/ndk/27.0.12077973
+
+# OpenSSL (shared, QtNetwork 运行时 TLS 依赖; 同时产出静态 .a)
+COPY docker-sources/openssl-3.3.2.tar.gz /tmp/
+WORKDIR /build
+RUN tar xzf /tmp/openssl-3.3.2.tar.gz && \
+    cd openssl-3.3.2 && \
+    ./Configure android-arm64 -D__ANDROID_API__=35 \
+        --prefix=${PREFIX} --openssldir=${PREFIX}/ssl \
+        shared no-tests no-ui-console -fPIC && \
+    make -j$(nproc) build_libs && make install_sw
+
+# 宿主 Qt6 (qt6 交叉编译需要 QT_HOST_PATH)
+RUN if [ "$QT_KIND" = "qt6" ]; then \
+        aqt_ok=0; \
+        for i in 1 2 3 4; do \
+            aqt install-qt linux desktop ${QT_VERSION} gcc_64 -O /opt/qt-host && aqt_ok=1 && break; \
+            echo "aqt retry $i"; sleep 15; \
+        done; \
+        [ "$aqt_ok" = "1" ] || exit 1; \
+        echo "/opt/qt-host/${QT_VERSION}/gcc_64" > /tmp/qt_host_path; \
+    else \
+        echo "" > /tmp/qt_host_path; \
+    fi
+
+# 编译 Qt
+COPY ci/build-qt5.sh ci/build-qt6.sh /tmp/
+RUN if [ "$QT_KIND" = "qt6" ]; then bash /tmp/build-qt6.sh; else bash /tmp/build-qt5.sh; fi
+
+# ===== 收集 Qt 运行时库集合 =====
+RUN QT_CUSTOM=/opt/qt${QT_KIND#qt}-custom && \
+    mkdir -p /output/lib && \
+    for m in Core Network Sql Xml; do \
+        cp ${QT_CUSTOM}/lib/libQt*${m}.so /output/lib/; \
+    done && \
+    for f in /output/lib/*.so; do \
+        case "$f" in *_arm64-v8a.so) ;; *) mv "$f" "${f%.so}_arm64-v8a.so" ;; esac; \
+    done && \
+    if [ -f "${QT_CUSTOM}/plugins/sqldrivers/libqsqlite.so" ]; then \
+        cp ${QT_CUSTOM}/plugins/sqldrivers/libqsqlite.so /output/lib/libplugins_sqldrivers_qsqlite_arm64-v8a.so; \
+    fi && \
+    if [ -d "${QT_CUSTOM}/plugins/tls" ]; then \
+        for f in ${QT_CUSTOM}/plugins/tls/*.so; do \
+            cp "$f" /output/lib/libplugins_tls_$(basename $f .so | sed s/libq//)_arm64-v8a.so; \
+        done; \
+    fi && \
+    cp -L ${PREFIX}/lib/libssl.so /output/lib/libssl.so && \
+    cp -L ${PREFIX}/lib/libcrypto.so /output/lib/libcrypto.so && \
+    ${TOOLCHAIN}/bin/llvm-strip /output/lib/*.so 2>/dev/null; \
+    ls -lh /output/lib/
+
+CMD ["echo", "Qt build complete. Copy /output/lib"]
