@@ -127,8 +127,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 4.6.7 是长期基线; 5.2.3 覆盖 Qt6 运行时; 4.3.9 覆盖最老版本
+        # 三个变体全覆盖: 4.3.9 (libtorrent 1.2 + VueTorrent v0.13) /
+        # 4.6.7 (Qt5 长期基线) / 5.2.3 (Qt6 运行时)
         include:
+          - version: '4.3.9'
           - version: '4.6.7'
           - version: '5.2.3'
     runs-on: ubuntu-latest
