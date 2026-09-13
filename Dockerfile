@@ -124,9 +124,11 @@ RUN tar xzf /tmp/openssl-3.3.2.tar.gz && \
     cd openssl-3.3.2 && \
     export ANDROID_NDK_ROOT=${ANDROID_NDK} && \
     export PATH=${TOOLCHAIN}/bin:${PATH} && \
-    ./Configure android-arm64 -D__ANDROID_API__=24 \
+    # shared: Qt 需要链接 libssl.so/libcrypto.so (qb 4.x 的 WebUI SSL 字段
+    # 无条件使用 QSslKey); 同时生成静态 .a 供 libtorrent 链接
+    ./Configure android-arm64 -D__ANDROID_API__=35 \
         --prefix=${PREFIX} --openssldir=${PREFIX}/ssl \
-        no-shared no-tests no-ui-console -fPIC && \
+        shared no-tests no-ui-console -fPIC && \
     make -j$(nproc) build_libs && make install_sw
 
 # ===== 编译 Boost =====
@@ -272,6 +274,10 @@ RUN QT_CUSTOM=$(cat /tmp/qt_custom) && \
     cp ${PREFIX}/bin/qbittorrent-nox /output/ 2>/dev/null; \
     cp ${PREFIX}/lib/*.so /output/lib/ && \
     cp ${TOOLCHAIN}/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so /output/lib/ 2>/dev/null; \
+    # OpenSSL 动态库 (QtNetwork 链接): 按 soname 命名打包
+    for so in ${PREFIX}/lib/libssl.so.* ${PREFIX}/lib/libcrypto.so.*; do \
+        case "$so" in *\*.*) cp "$so" /output/lib/ ;; esac; \
+    done; \
     ${STRIP} /output/lib/libqbt*.so /output/lib/libtorrent-rasterbar.so /output/lib/libQt*.so 2>/dev/null; \
     ls -lh /output/lib/
 
