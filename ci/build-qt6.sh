@@ -3,7 +3,7 @@
 #
 # qt6 需要: 宿主 Qt6 (QT_HOST_PATH, 由 Dockerfile 用 aqt 装好) + NDK r27。
 # 补丁后 JNI_OnLoad 仅设置 JavaVM, 运行期 JNI 空指针有守卫, Android 集成惰性化。
-set -e
+set -eo pipefail
 
 export ANDROID_NDK=/opt/android-sdk/ndk/27.0.12077973
 export QT_INSTALL=/opt/qt6-custom
@@ -21,7 +21,7 @@ cd /build/qtbase-everywhere-src-6.6.3
 
 echo "===== 补丁 1: qjnihelpers.cpp JNI_OnLoad 最小化 (仅设置 JavaVM) ====="
 python3 - << 'PYEOF'
-path = '/build/qtbase-everywhere-src-6.6.3/src/corelib/platform/android/qjnihelpers.cpp'
+path = '/build/qtbase-everywhere-src-6.6.3/src/corelib/kernel/qjnihelpers.cpp'
 with open(path) as f:
     c = f.read()
 
@@ -38,7 +38,7 @@ with open(path, 'w') as f:
     f.write(c)
 print("qjnihelpers.cpp JNI_OnLoad minimized")
 PYEOF
-grep -n -A5 "JNIEXPORT jint JNICALL JNI_OnLoad" src/corelib/platform/android/qjnihelpers.cpp | head -8
+grep -n -A5 "JNIEXPORT jint JNICALL JNI_OnLoad" src/corelib/kernel/qjnihelpers.cpp | head -8
 
 echo "===== 补丁 2: qjnienvironment.cpp NULL javaVM 守卫 ====="
 sed -i 's/        QtAndroidPrivate::javaVM()->DetachCurrentThread();/        if (QtAndroidPrivate::javaVM()) QtAndroidPrivate::javaVM()->DetachCurrentThread();/' \

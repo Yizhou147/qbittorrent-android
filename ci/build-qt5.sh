@@ -5,7 +5,7 @@
 # 触发依赖 Activity 上下文的 JNI 调用, 在本项目的非 Qt-Activity 进程里会崩溃。
 # 补丁后: 最小化 JNI_OnLoad (仅设置 JavaVM) + qjni.cpp 空指针守卫,
 # Qt 的 Android 集成安全惰性化 (qBittorrent nox 用不到 Activity 相关能力)。
-set -e
+set -eo pipefail
 
 export ANDROID_NDK=/opt/android-sdk/ndk/27.0.12077973
 export QT_INSTALL=/opt/qt5-custom
@@ -58,10 +58,9 @@ echo "===== 补丁 4: qlogging.cpp Android 下禁用 execinfo ====="
 sed -i 's/__has_include(<execinfo.h>)/(__has_include(<execinfo.h>) \&\& !defined(Q_OS_ANDROID))/' \
     src/corelib/global/qlogging.cpp 2>/dev/null || true
 
-echo "===== 补丁 5: 新版 clang 需要 <limits> ====="
-for f in src/corelib/global/qendian.h src/corelib/global/qfloat16.h \
-         src/corelib/text/qdoublescanformat_p.h src/corelib/tools/qduplicatetracker_p.h; do
-    if [ -f "$f" ] && ! grep -q '#include <limits>' "$f"; then
+echo "===== 补丁 5: 新版 clang/libstdc++ 需要 <limits> ====="
+grep -rl "std::numeric_limits" src/ 2>/dev/null | while IFS= read -r f; do
+    if ! grep -q '#include <limits>' "$f"; then
         sed -i '1i #include <limits>' "$f"
         echo "  limits: $f"
     fi
