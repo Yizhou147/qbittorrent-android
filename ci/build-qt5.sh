@@ -69,6 +69,12 @@ grep -rl "std::numeric_limits" src/ 2>/dev/null | while IFS= read -r f; do
     fi
 done
 
+echo "===== 补丁 5b: android/default_pre.prf 的 ranlib 用 llvm-ranlib ====="
+# NDK r27 无 aarch64-linux-android-ranlib; 该 prf 在 qmake.conf 之后加载, 必须在此处覆盖
+sed -i 's|QMAKE_RANLIB            = $${CROSS_COMPILE}ranlib|QMAKE_RANLIB            = $$NDK_LLVM_PATH/bin/llvm-ranlib|' \
+    mkspecs/features/android/default_pre.prf
+grep -n "QMAKE_RANLIB" mkspecs/features/android/default_pre.prf
+
 echo "===== 补丁 6: mkspecs 注入静态 OpenSSL 路径 ====="
 cat >> mkspecs/android-clang/qmake.conf << EOF
 
