@@ -73,11 +73,11 @@ RUN if [ "$QT_KIND" = "qt6" ]; then bash /tmp/build-qt6.sh; else bash /tmp/build
 # ===== 收集 Qt 运行时库集合 =====
 RUN QT_CUSTOM=/opt/qt${QT_KIND#qt}-custom && \
     mkdir -p /output/lib && \
+    # android 构建的库名自带 _arm64-v8a 后缀 (如 libQt5Core_arm64-v8a.so)
     for m in Core Network Sql Xml; do \
-        cp ${QT_CUSTOM}/lib/libQt*${m}.so /output/lib/; \
-    done && \
-    for f in /output/lib/*.so; do \
-        case "$f" in *_arm64-v8a.so) ;; *) mv "$f" "${f%.so}_arm64-v8a.so" ;; esac; \
+        for f in ${QT_CUSTOM}/lib/libQt*${m}_arm64-v8a.so ${QT_CUSTOM}/lib/libQt*${m}.so; do \
+            if [ -f "$f" ]; then cp "$f" /output/lib/; break; fi; \
+        done; \
     done && \
     if [ -f "${QT_CUSTOM}/plugins/sqldrivers/libqsqlite.so" ]; then \
         cp ${QT_CUSTOM}/plugins/sqldrivers/libqsqlite.so /output/lib/libplugins_sqldrivers_qsqlite_arm64-v8a.so; \
