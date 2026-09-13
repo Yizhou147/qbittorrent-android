@@ -100,7 +100,13 @@ mkdir -p /build/qt5-build && cd /build/qt5-build
     -shared 2>&1 | tail -60
 
 echo "===== 编译 Qt5 (约 20-40 分钟) ====="
-make -j$(nproc) 2>&1 | tail -10
+if ! make -j$(nproc) > /tmp/qt5-make.log 2>&1; then
+    echo "===== Qt5 编译失败, 错误摘要 ====="
+    grep -E "error:|Error [0-9]" /tmp/qt5-make.log | head -30 || true
+    echo "===== 最后 80 行 ====="
+    tail -80 /tmp/qt5-make.log
+    exit 1
+fi
 make install
 
 echo "===== 产物 ====="
