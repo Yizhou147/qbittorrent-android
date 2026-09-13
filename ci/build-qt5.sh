@@ -89,6 +89,8 @@ OPENSSL_LIBS = -L${PREFIX}/lib -lssl -lcrypto -ldl
 EOF
 
 echo "===== 配置 Qt5 ====="
+# qt5 configure 的 openssl 探测测试读取 OPENSSL_LIBS 环境变量
+export OPENSSL_LIBS="-L${PREFIX}/lib -lssl -lcrypto -ldl"
 mkdir -p /build/qt5-build && cd /build/qt5-build
 ../qtbase-everywhere-src-5.15.2/configure \
     -prefix ${QT_INSTALL} \

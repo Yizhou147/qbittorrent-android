@@ -92,8 +92,12 @@ ENV PATH="${JAVA_HOME}/bin:${ANDROID_HOME}/platform-tools:${PATH}"
 # 产物: /opt/qt5-custom 或 /opt/qt6-custom, 库命名 libQt{5,6}*.so (收集时改名)
 COPY ci/build-qt5.sh ci/build-qt6.sh /tmp/
 RUN if [ "$QT_KIND" = "qt6" ]; then \
-        aqt install-qt linux desktop ${QT_VERSION} gcc_64 -O /opt/qt-host && \
-        echo "/opt/qt-host/${QT_VERSION}/gcc_64" > /tmp/qt_host_path; \
+        aqt_ok=0; \
+        for i in 1 2 3 4; do \
+            aqt install-qt linux desktop ${QT_VERSION} gcc_64 -O /opt/qt-host && aqt_ok=1 && break; \
+            echo "aqt retry $i"; sleep 15; \
+        done; \
+        [ "$aqt_ok" = "1" ] && echo "/opt/qt-host/${QT_VERSION}/gcc_64" > /tmp/qt_host_path; \
     else \
         echo "" > /tmp/qt_host_path; \
     fi
