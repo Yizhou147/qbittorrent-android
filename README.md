@@ -89,13 +89,23 @@
 - 在 cmake configure 之前编译所有 `.ts` 文件为 `.qm` 文件
 - 生成 QRC 文件，cmake 自动包含翻译资源（补丁将 LinguistTools 变为可选依赖）
 
-#### 5. Qt6 资源 zstd 压缩（qb 5.x）
+#### 5. JNI_OnLoad 返回 JNI_ERR（启动卡死，模拟器冒烟测试发现）
+
+**问题**：预编译 Qt（5.15.2 与 6.6.3 均如此）的 `libQt*Core` 在 `System.loadLibrary` 时执行
+`JNI_OnLoad`，内部对 `org.qtproject.qt.android.QtNative` 做 `RegisterNatives`——APK 里没有
+Qt 的 Java 类时抛 `ClassNotFoundException`，`JNI_OnLoad` 返回 `JNI_ERR`，加载库失败，
+WebUI 永远不会启动（表象是卡在启动界面）。v1.1 通过本地重编 qtbase 打 JNI 补丁规避了此问题。
+
+**解决方案**：把 Qt Android 包自带的 Java 类 jar（`QtAndroid.jar` / `Qt6Android.jar`）打包进
+APK（`app/libs/`），JNI_OnLoad 注册 natives 即可成功。
+
+#### 6. Qt6 资源 zstd 压缩（qb 5.x）
 
 **问题**：Qt 6 的 rcc 默认用 zstd 压缩资源，生成的代码引用 `qt_resourceFeatureZstd` 符号，链接 Android 预编译 QtCore 时报 undefined symbol。
 
 **解决方案**：补丁在 `CommonConfig.cmake` 给 `CMAKE_AUTORCC_OPTIONS` 追加 `--no-zstd`，回退 zlib 压缩。
 
-#### 6. 旧版 qb 与新工具链的兼容
+#### 7. 旧版 qb 与新工具链的兼容
 
 - **qb 4.3.9**：新 clang 将 narrowing 聚合初始化视为错误，libtorrent 1.2.20 编译参数追加 `-Wno-error=c++11-narrowing*`；`execinfo.h` 在 Android 不可用，关闭 STACKTRACE
 - **qb 5.2.3**：使用 boost::stacktrace（未编译该模块），关闭 STACKTRACE
