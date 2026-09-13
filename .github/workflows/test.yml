@@ -14,9 +14,9 @@ on:
         required: false
         default: ''
       poll_attempts:
-        description: 'WebUI 轮询次数 (每次间隔10秒, 默认60)'
+        description: 'WebUI 轮询次数 (每次间隔10秒, 默认20)'
         required: false
-        default: '60'
+        default: '20'
       poll_interval:
         description: 'WebUI 轮询间隔秒数 (默认10)'
         required: false
@@ -198,18 +198,22 @@ jobs:
       - name: Poll WebUI and verify qBittorrent version
         run: |
           EXPECTED="${{ matrix.version }}"
-          ATTEMPTS="${{ inputs.poll_attempts || '60' }}"
+          ATTEMPTS="${{ inputs.poll_attempts || '20' }}"
           INTERVAL="${{ inputs.poll_interval || '10' }}"
           echo "polling: $ATTEMPTS attempts x ${INTERVAL}s"
           OK=0
           for i in $(seq 1 "$ATTEMPTS"); do
-            CODE=$(curl -s -o /tmp/version.out -w '%{http_code}' --max-time 5 \
-              http://localhost:18080/api/v2/app/version || echo 000)
-            if [ "$CODE" = "200" ]; then
+            # qb 对 Host/Referer 有校验, 且 /version 需要登录态: 用 /auth/login 探活
+            CODE=$(curl -s -o /tmp/login.out -w '%{http_code}' --max-time 5 \
+              -H "Referer: http://localhost:8080" \
+              -d "username=admin&password=adminadmin" \
+              -c /tmp/cookies.txt \
+              http://localhost:18080/api/v2/auth/login || echo 000)
+            if [ "$CODE" = "200" ] && grep -q "Ok." /tmp/login.out; then
               OK=1
               break
             fi
-            echo "attempt $i/$ATTEMPTS: HTTP $CODE"
+            echo "attempt $i/$ATTEMPTS: login HTTP $CODE $(cat /tmp/login.out 2>/dev/null | head -1)"
             sleep "$INTERVAL"
           done
           if [ "$OK" != "1" ]; then
@@ -217,7 +221,9 @@ jobs:
             adb shell "logcat -d | tail -100" || true
             exit 1
           fi
-          VERSION=$(cat /tmp/version.out)
+          VERSION=$(curl -s -b /tmp/cookies.txt --max-time 5 \
+            -H "Referer: http://localhost:8080" \
+            http://localhost:18080/api/v2/app/version)
           echo "WebUI 就绪, qBittorrent version: $VERSION"
           if [[ "$VERSION" != *"$EXPECTED"* ]]; then
             echo "ERROR: 期望版本 $EXPECTED, 实际 $VERSION"
