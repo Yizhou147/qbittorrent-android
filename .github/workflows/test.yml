@@ -57,9 +57,11 @@ jobs:
       - name: Download vanilla source
         run: |
           mkdir -p /tmp/src
-          curl -L --retry 3 --connect-timeout 60 \
-            -o /tmp/src/qbittorrent.tar.gz \
-            "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/${{ matrix.qbt_ref }}.tar.gz"
+          # 直连优先, 失败回退镜像
+          curl -fL --retry 3 --connect-timeout 60 -o /tmp/src/qbittorrent.tar.gz \
+            "https://github.com/qbittorrent/qBittorrent/archive/refs/tags/${{ matrix.qbt_ref }}.tar.gz" || \
+          curl -fL --retry 3 --connect-timeout 60 -o /tmp/src/qbittorrent.tar.gz \
+            "https://ghfast.top/https://github.com/qbittorrent/qBittorrent/archive/refs/tags/${{ matrix.qbt_ref }}.tar.gz"
           mkdir -p /tmp/src/qbittorrent
           tar xzf /tmp/src/qbittorrent.tar.gz -C /tmp/src/qbittorrent --strip-components=1
 
