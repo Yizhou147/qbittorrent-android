@@ -43,9 +43,13 @@
 
 ### 核心组件
 
-1. **Qt 框架**（预编译包，经 aqtinstall 安装）
-   - 4.3.9 / 4.6.7 使用 Qt 5.15.2 Android 版
-   - 5.2.3 使用 Qt 6.6.3 Android 版（qb 5.x 要求 Qt ≥ 6.6，交叉编译需 QT_HOST_PATH）
+1. **Qt 运行时库**（源码重编，产物入库复用）
+   - 4.3.9 / 4.6.7 使用 Qt 5.15.2 Android 版；5.2.3 使用 Qt 6.6.3（qb 5.x 要求 Qt ≥ 6.6，交叉编译需 QT_HOST_PATH）
+   - 运行库由 `build-qt.yml` + `Dockerfile.qt` 从源码编译 qtbase（只编 Core/Network/Sql/Xml + tls/sqldrivers 插件），
+     产物提交在 `third-party/qt5|qt6/arm64-v8a/`，主构建直接拷进 jniLibs，**不再重编 Qt**
+   - 必须源码重编的原因见「关键技术问题 5」：预编译 Qt 的 `JNI_OnLoad` 依赖 Activity 上下文
+   - 主构建的 `Dockerfile` 只用 aqtinstall 拉同版本 Qt 的**头文件 / CMake config / 宿主工具**
+     （moc/rcc/uic）来编 libqbt，运行期用的是 `third-party/` 里那份
 
 2. **libtorrent**
    - qb 4.3.9 → libtorrent 1.2.20；qb 4.6.7 → 2.0.10；qb 5.2.3 → 2.0.14
@@ -58,7 +62,8 @@
    - 包含完整的 WebUI 翻译文件（宿主机 lrelease 预编译 .qm + qrc）
 
 4. **OpenSSL 3.3.2** + **Boost 1.86.0**
-   - 静态编译，嵌入 libtorrent/libqbt，无需打包 libssl.so/libcrypto.so
+   - 静态链接进 libtorrent 与 libqbt（`libqbt.so` 不依赖 libssl）
+   - Qt 侧的 TLS 插件是动态链接的，所以 `third-party/*/arm64-v8a/` 里仍随包提供 `libssl.so` / `libcrypto.so`
 
 ### 关键技术问题及解决方案
 
@@ -93,7 +98,7 @@
 - 在 cmake configure 之前编译所有 `.ts` 文件为 `.qm` 文件
 - 生成 QRC 文件，cmake 自动包含翻译资源（补丁将 LinguistTools 变为可选依赖）
 
-#### 5. Qt Android 集成与 JNI 崩溃（真机闪退，模拟器冒烟测试定位）
+#### 5. Android 进程内的 JNI 崩溃（Qt6 / JNI_OnLoad，5.2.3 打开 WebUI 闪退的根因）
 
 **问题**：预编译 Qt（5.15.2 与 6.6.3 均如此）的 `libQt*Core` 在 `System.loadLibrary` 时执行
 `JNI_OnLoad`，对本项目这种非 Qt-Activity 进程有两个层面的崩溃：
@@ -103,11 +108,27 @@
    运行期会执行依赖 Activity/ClassLoader 的 JNI 调用，在真机上以
    `GetStaticMethodID(java_class == null)` 等 abort 闪退。
 
-**解决方案**（v1.1 已验证的路线）：Docker 内**从源码重编 qtbase**（qt5.15.2 / qt6.6.3），
-补丁见 `ci/build-qt5.sh` / `ci/build-qt6.sh`：
-- `JNI_OnLoad` 最小化，仅设置 JavaVM 指针、不注册任何 natives；
-- `qjni.cpp`/`qjnienvironment.cpp` 增加 NULL javaVM 守卫；
-- Qt 的 Android 集成在 nox 进程里安全惰性化（qbittorrent-nox 用不到 Activity 能力）。
+**解决方案**：Docker 内**从源码重编 qtbase**（qt5.15.2 / qt6.6.3），补丁见
+`ci/build-qt5.sh` / `ci/build-qt6.sh`：
+
+- `JNI_OnLoad` 最小化：只设置 JavaVM 指针，不注册任何 natives；
+- **同时缓存 app 的 ClassLoader 到 `g_jClassLoader`**：Qt 原本只在原版 `JNI_OnLoad` 里从
+  `org.qtproject.qt.android.QtNative` 取值，而本 APK 不含那个 Java 类，于是
+  `QJniObject::loadClass()` 对任何按类名的查找都返回 null——连
+  `android/os/Environment`、`java/util/TimeZone` 这类系统类也拿不到。现改为从加载本库的
+  `com.qbittorrent.android/QBittorrentService` 取（并带系统 ClassLoader 兜底）。
+  运行时会往 logcat 打一行 `QtJNI: JNI_OnLoad: classLoader=ok`，用于区分「守卫兜住」和
+  「类解析真的修好了」；
+- **`qjniobject.cpp` 的 `getMethodID()` / `getFieldID()` 增加 NULL `jclass` 守卫**：
+  Qt6 把 Android 实现改写成了类型化模板 `callStaticMethod<T>`，它不再判空；Qt5 的 varargs
+  API 一直有判空，所以同样是「类解析不到」，Qt5（4.3.9 / 4.6.7）能静默降级，Qt6 直接被
+  ART 判为致命错误（`java_class == null in call to GetStaticMethodID`）。
+  5.2.3 的第一现场是启动末期首次构造 `QMimeDatabase`
+  → `QStandardPaths::locateAll(GenericDataLocation, "mime")`
+  → `writableLocation(GenericDataLocation)` → `getExternalStorageDirectory()`；
+- `qjnienvironment.cpp` 增加 NULL `javaVM` 守卫。
+
+**验证**：qb 5.2.3 在 CI emulator-smoke（run `34767720498`）与真机实测均通过。
 
 #### 6. Qt6 资源 zstd 压缩（qb 5.x）
 
@@ -126,10 +147,14 @@
 
 1. 打开仓库 Actions 页面，选择 `Build qBittorrent Android APK`
 2. 点击 `Run workflow`，选择要构建的 qBittorrent 版本（`all` = 三个版本并行）
-3. 等待构建完成（约 40-60 分钟）
+3. 等待构建完成（单变体实测约 15 分钟；`all` 三个变体矩阵并行，整体时间取决于 runner 排队与并发）
 4. 在 Artifacts 页面下载对应 APK（`qbittorrent-android-qb<版本>`）
 
 推送 `v*` tag 会自动构建全部三个版本。
+
+> Qt 运行时库由单独的 `Build Qt runtime libs` 工作流编译（实测 qt6 约 7 分钟），产物提交在
+> `third-party/`。**只有改动 Qt 补丁（`ci/build-qt*.sh`）时才需要重跑它**；日常改 qb 补丁、
+> Java 代码或 Gradle 配置都不需要动 Qt。
 
 ## 自动化测试
 
@@ -231,18 +256,25 @@ APK 输出：`apk-project/app/build/outputs/apk/release/app-release.apk`（已�
 
 ```
 qbittorrent-android/
-├── Dockerfile                    # Docker 构建环境（参数化: QT_KIND/QT_VERSION/CXX_STANDARD）
+├── Dockerfile                    # 主构建环境: 编 libtorrent/libqbt（参数化 QT_KIND/QT_VERSION/CXX_STANDARD）
+├── Dockerfile.qt                 # Qt 运行时库构建环境（build-qt.yml 使用）
 ├── ci/
 │   ├── apply-patches.sh          # 给 vanilla qbittorrent 源码应用 Android 移植补丁
+│   ├── build-qt5.sh              # 源码编译 qtbase 5.15.2 + JNI 补丁
+│   ├── build-qt6.sh              # 源码编译 qtbase 6.6.3 + JNI 补丁
+│   ├── build-native.sh           # libtorrent/libqbt 编译
 │   └── patches/
 │       ├── common/               # JNI 桥接（编入 libqbt.so）
 │       ├── 4.3.9/                # 各版本补丁集
 │       ├── 4.6.7/
 │       └── 5.2.3/
+├── third-party/                  # Qt 运行时库产物（build-qt.yml 生成，入库复用）
+│   ├── qt5/arm64-v8a/
+│   └── qt6/arm64-v8a/            # libQt6Core/Network/Sql/Xml + tls/sqldrivers 插件 + libssl/libcrypto
 ├── scripts/
 │   ├── prepare-sources.sh        # 本地构建: 下载源码并打补丁
 │   └── ...                       # 历史构建/调试脚本
-├── docker-sources/               # 构建前准备的源码（脚本生成，不入库）
+├── docker-sources/               # 构建前准备的第三方源码/工具链 zip（脚本生成，不入库）
 ├── apk-project/                  # Android 项目
 │   ├── app/
 │   │   ├── src/main/
@@ -253,21 +285,32 @@ qbittorrent-android/
 │   │   └── build.gradle
 │   └── build.gradle
 └── .github/workflows/
-    └── build-android.yml         # CI/CD 工作流（矩阵构建三个版本）
+    ├── build-android.yml         # 主构建: 矩阵构建三个版本的 APK
+    ├── build-qt.yml              # Qt 运行时库（产物提交进 third-party/）
+    ├── build-apk-prebuilt.yml    # 零编译出包: 复用仓库 jniLibs 里的原生库
+    └── test.yml                  # patch-check / unit-tests / emulator-smoke
 ```
 
 ## 已知问题
 
 1. **启动较慢**：首次启动需要 10-30 秒初始化
 2. **内存占用**：Qt5 和 libtorrent 较大，建议设备至少 2GB RAM
-3. **Android 版本**：仅支持 Android 8.0+（API 26+）
+3. **Android 版本**：`minSdk 24`（Android 7.0+），仅在较新版本上实测过，低版本未验证
 4. **架构限制**：仅支持 ARM64 设备
+5. **HTTPS tracker / 系统证书 / SQLite 持久化暂不可用**：Qt 的插件搜索路径默认指向编译期
+   prefix（设备上不存在），而 Java/桥接层没有设置 `QT_PLUGIN_PATH`，所以 `third-party/` 里的
+   `libplugins_tls_*`、`libplugins_sqldrivers_*` 实际没有被加载（logcat 可见
+   `qt.network.ssl: No functional TLS backend was found`）。修法：在 JNI 桥接里
+   `setenv("QT_PLUGIN_PATH", <nativeLibraryDir>, 1)`（约 10 行，待办）
 
 ## 版本历史
 
 ### v1.2 (2026-09-13)
 
 - 支持 qBittorrent 4.3.9 / 4.6.7 / 5.2.3 三版本矩阵构建
+- **修复 qb 5.2.3（Qt6）打开 WebUI 时闪退**：`JNI_OnLoad` 缓存 app ClassLoader +
+  `getMethodID`/`getFieldID` NULL `jclass` 守卫（详见「关键技术问题 5」），
+  真机与 CI emulator-smoke 均通过
 - 5.2.3 变体升级到 Qt 6.6.3 + C++20
 - libtorrent/qBittorrent 改用 API 35 target 编译（修复 Android 16 TLS 对齐问题）
 - 修复 CI 构建产物缺少 Qt 库的问题
