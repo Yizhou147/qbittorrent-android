@@ -211,28 +211,6 @@ jobs:
           test -f build-output/libtorrent-rasterbar.so
           test -f build-output/libc++_shared.so
 
-      - name: Verify native library dependencies
-        run: |
-          # 校验 libqbt.so 的动态依赖在产物中齐备 (系统库除外)
-          cd build-output
-          QBT_LIB=$(ls libqbt*.so | head -1)
-          echo "=== $QBT_LIB NEEDED ==="
-          readelf -d "$QBT_LIB" | grep NEEDED
-          missing=0
-          for lib in $(readelf -d "$QBT_LIB" | grep NEEDED | sed 's/.*\[\(.*\)\].*/\1/'); do
-            case "$lib" in
-              liblog.so|libdl.so|libm.so|libc.so|libz.so) continue ;;
-            esac
-            # NDK 工具链产物可能带 _arm64-v8a 后缀 (qb 4.x)
-            base="${lib%.so}"
-            if [ ! -f "$lib" ] && [ ! -f "${base}_arm64-v8a.so" ]; then
-              echo "MISSING: $lib"
-              missing=1
-            fi
-          done
-          [ "$missing" = "0" ] || exit 1
-          echo "All non-system dependencies present"
-
       - name: Prepare jniLibs
         run: |
           JNILIBS=apk-project/app/src/main/jniLibs/arm64-v8a
@@ -252,6 +230,30 @@ jobs:
 
           echo "=== jniLibs contents ==="
           ls -lh "$JNILIBS"
+
+      - name: Verify native library dependencies
+        run: |
+          # 对最终 APK 的库集校验: libqbt 的动态依赖必须齐备 (系统库除外)
+          JNILIBS=apk-project/app/src/main/jniLibs/arm64-v8a
+          cd "$JNILIBS"
+          QBT_LIB=$(ls libqbt*.so | head -1)
+          echo "=== $QBT_LIB NEEDED ==="
+          readelf -d "$QBT_LIB" | grep NEEDED
+          missing=0
+          for lib in $(readelf -d "$QBT_LIB" | grep NEEDED | sed 's/.*\[\(.*\)\].*/\1/'); do
+            case "$lib" in
+              liblog.so|libdl.so|libm.so|libc.so|libz.so) continue ;;
+            esac
+            # NDK 工具链产物可能带 _arm64-v8a 后缀 (qb 4.x)
+            base="${lib%.so}"
+            if [ ! -f "$lib" ] && [ ! -f "${base}_arm64-v8a.so" ]; then
+              echo "MISSING: $lib"
+              missing=1
+            fi
+          done
+          [ "$missing" = "0" ] || exit 1
+          echo "All non-system dependencies present"
+
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
