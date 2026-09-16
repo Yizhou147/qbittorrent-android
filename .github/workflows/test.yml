@@ -412,6 +412,55 @@ jobs:
           fi
           echo "OK: 添加/暂停/恢复/删除 往返通过"
 
+      - name: Smoke - 非法输入只报错不崩溃 (URL/畸形磁力/损坏文件)
+        if: steps.build.outputs.has_apk == 'true'
+        run: |
+          # 回归测试: 这三类输入曾在 5.2.3 上直接 SIGABRT (libtorrent 抛出的
+          # boost/system 异常跨 DSO 时 qb 的 catch 匹配不上 -> std::terminate)。
+          # 修复见 ci/patches/5.2.3/050-torrentdescriptor-catchall.patch。
+          BASE=http://localhost:18080
+          HOSTH=(-H "Host: localhost:8080" -H "Referer: http://localhost:8080")
+          PKG="${{ matrix.pkg }}"
+          PID_BEFORE=$(adb shell pidof -s "$PKG" | tr -d '\r')
+          echo "pid before: $PID_BEFORE"
+
+          check_not_crash() {
+            local label="$1" code="$2" body_file="$3"
+            echo "$label -> HTTP $code: $(head -c 120 "$body_file" 2>/dev/null)"
+            [ "$code" != "000" ] || { echo "::error::$label 请求没有响应 (进程多半已经崩了)"; exit 1; }
+          }
+
+          echo "=== 1) 按 URL 添加 (https 无 TLS 后端, 应报错) ==="
+          CODE=$(curl -s -o /tmp/url.out -w '%{http_code}' --max-time 20 "${HOSTH[@]}" \
+            --data-urlencode "urls=https://example.com/not-a-real.torrent" \
+            "$BASE/api/v2/torrents/add")
+          check_not_crash "按 URL 添加" "$CODE" /tmp/url.out
+
+          echo "=== 2) 畸形磁力 (libtorrent 抛 invalid info-hash) ==="
+          CODE=$(curl -s -o /tmp/magnet.out -w '%{http_code}' --max-time 20 "${HOSTH[@]}" \
+            --data-urlencode "urls=magnet:?xt=urn:btih:not_a_valid_hash" \
+            "$BASE/api/v2/torrents/add")
+          check_not_crash "畸形磁力" "$CODE" /tmp/magnet.out
+
+          echo "=== 3) 损坏的 .torrent 文件 (libtorrent 抛 bdecode 错误) ==="
+          head -c 2000 /dev/urandom > /tmp/garbage.torrent
+          CODE=$(curl -s -o /tmp/garbage.out -w '%{http_code}' --max-time 20 "${HOSTH[@]}" \
+            -F "torrents=@/tmp/garbage.torrent;type=application/x-bittorrent" \
+            "$BASE/api/v2/torrents/add")
+          check_not_crash "损坏文件" "$CODE" /tmp/garbage.out
+
+          echo "=== 4) 进程与 logcat 复检 ==="
+          sleep 5
+          PID_AFTER=$(adb shell pidof -s "$PKG" | tr -d '\r')
+          echo "pid after: $PID_AFTER"
+          [ "$PID_BEFORE" = "$PID_AFTER" ] || { echo "::error::进程被重启 ($PID_BEFORE -> $PID_AFTER)"; exit 1; }
+          adb shell logcat -d > logcat-invalid.txt
+          if awk -v p="$PID_AFTER" '$3==p' logcat-invalid.txt \
+               | grep -E "JNI DETECTED|Fatal signal|SIGABRT|Abort message|FATAL EXCEPTION"; then
+            echo "::error::非法输入导致本进程致命错误 (见上方)"; exit 1
+          fi
+          echo "OK: 非法输入只返回错误, 没有崩溃"
+
       - name: Collect logs on failure
         if: failure() && steps.build.outputs.has_apk == 'true'
         run: |

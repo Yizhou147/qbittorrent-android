@@ -141,6 +141,39 @@
 - **qb 4.3.9**：新 clang 将 narrowing 聚合初始化视为错误，libtorrent 1.2.20 编译参数追加 `-Wno-error=c++11-narrowing*`；`execinfo.h` 在 Android 不可用，关闭 STACKTRACE
 - **qb 5.2.3**：使用 boost::stacktrace（未编译该模块），关闭 STACKTRACE
 
+#### 8. qb 5.2.3 添加种子直接闪退（Boost 异常跨 DSO 未捕获）
+
+**问题**：在 5.2.3 上，按 URL 添加种子、添加畸形磁力、上传损坏的 `.torrent`，都会立刻 SIGABRT：
+
+```
+Abort message: 'terminating due to uncaught exception of type
+boost::system::system_error: unsupported URL protocol [libtorrent:24]'
+backtrace: TorrentDescriptor::parse / load  <-  TorrentsController::addAction
+```
+
+**根因**：libtorrent 抛出的 `boost::system::system_error` 跨 DSO
+（`libtorrent-rasterbar.so` → `libqbt.so`）时，qb 里的
+`catch (const lt::system_error &)` 匹配不上（两个 DSO 各自静态链接了 Boost.System，
+异常类型身份不一致），异常逃出 `noexcept` 函数即 `std::terminate` → abort。
+qb 5.2.3 的 `TorrentDescriptor` 五个入口（`parse` / `load` / `loadFromFile` /
+`saveToFile` / `saveToBuffer`）都是这个形状。
+
+**解决方案**：`ci/patches/5.2.3/050-torrentdescriptor-catchall.patch` 给这五处各补
+`catch (const std::exception &)` + `catch (...)`。`catch (...)` 不依赖类型匹配，是绕开
+跨 DSO 类型身份问题的确定性兜底；异常退化为返回错误信息，WebUI 报错而不是进程崩溃。
+
+**验证**（真机 adb 实测，修复前后对照）：
+
+| 输入 | 修复前 | 修复后 |
+|---|---|---|
+| 正常磁力 | 正常添加 | 正常添加 |
+| `https://…torrent` | SIGABRT | HTTP 409（https 取种子需 TLS 后端，见「已知问题 5」） |
+| `http://…torrent` | — | HTTP 202，种子正常加入 |
+| 畸形磁力（`btih:not_a_valid_hash`） | SIGABRT | HTTP 409 |
+| 随机字节的 `.torrent` | SIGABRT | HTTP 415 + 明确错误提示 |
+
+CI 侧由 `test.yml` 的「非法输入只报错不崩溃」步骤做回归。
+
 ## 构建指南
 
 ### 方式一：GitHub Actions 自动构建（推荐，唯一支持的 CI 方式）
@@ -182,6 +215,26 @@ gh workflow run test.yml
 
 APK artifact 保留 90 天。所以验证测试代码本身、或复测某个历史版本的包时，不必重新出包；
 只有 APK 内容真的改了（改 Java/qb 补丁/Qt 补丁）才需要重新构建。
+
+### 签名（正式发布必须）
+
+release 包使用固定密钥签名；否则每次 CI 构建的 debug key 都不同，用户无法覆盖安装。
+
+- **本地/自建**：keystore 放任意位置（**不要放进仓库**，本仓库是 public），在
+  `apk-project/signing.properties` 里写（该文件已被 `.gitignore` 排除）：
+
+  ```properties
+  storeFile=/绝对路径/keystore.jks
+  storePassword=...
+  keyAlias=...
+  keyPassword=...        # 可省略，省略时与 storePassword 相同
+  ```
+
+- **CI**：仓库 Secrets 配 `QBT_KEYSTORE_BASE64`（keystore 的 base64）、
+  `QBT_KEYSTORE_PASSWORD`、`QBT_KEY_ALIAS`、`QBT_KEY_PASSWORD`，工作流会解码后
+  通过环境变量交给 Gradle。
+- 两处都没有时回退 debug 签名（仅供调试，产物不能互相覆盖安装，日志里会有 warning）。
+- 构建日志会打印 `apksigner verify --print-certs` 与 `aapt2 dump packagename`，可直接核对。
 
 ### 方式二：本地 Docker 构建
 
@@ -238,6 +291,24 @@ cd apk-project
 APK 输出：`apk-project/app/build/outputs/apk/release/app-release.apk`（已签名，可直接安装）
 
 ## 使用说明
+
+### 三个变体共存
+
+三个变体的 applicationId 不同，可以同时安装、互不影响：
+
+| 变体 | 包名 | 桌面名称 |
+|---|---|---|
+| qb 4.3.9 | `com.qbittorrent.android.qb439` | qBittorrent 4.3.9 |
+| qb 4.6.7 | `com.qbittorrent.android.qb467` | qBittorrent 4.6.7 |
+| qb 5.2.3 | `com.qbittorrent.android.qb523` | qBittorrent 5.2.3 |
+
+注意：
+
+- 包名与 v1.2 之前不同（当时是 `com.qbittorrent.android`），**首次需要卸载重装**；
+  之后的新版本都能直接覆盖安装（从 v1.2 起 release 包用固定密钥签名，见「构建指南 → 签名」）。
+- 三个变体的 WebUI 默认端口都是 8080，**建议同时只运行一个**；要同时使用，请在各自设置里
+  改成不同端口。
+- 默认下载目录都是 `/storage/emulated/0/Download/qBittorrent`，同时使用时也建议分别设置。
 
 ### 首次启动
 
@@ -318,7 +389,8 @@ qbittorrent-android/
    - **BT 本体不受影响**：tracker（含 HTTPS tracker）由 libtorrent 处理，用的是静态链进
      libqbt 的 OpenSSL —— `libqbt.so` 的 NEEDED 里没有 `libssl.so` 就是证据；
    - 受影响的是**走 Qt 网络栈的 HTTPS**：RSS 订阅（HTTPS 源）、GeoIP 数据库下载、搜索插件更新、
-     WebUI 若启用 HTTPS；
+     WebUI 若启用 HTTPS；**按 https URL 添加种子**也会失败（qb 需要先下载那个 .torrent），
+     而按 http URL 添加正常；
    - **SQLite 影响很小**：qb 的 `ResumeDataStorageType` 默认是 `Legacy`（`.fastresume` 文件，
      4.6.7 与 5.2.3 都是），只有用户在 WebUI 高级设置里显式切到 SQLite 才会用到 qsqlite 驱动；
    - 还有独立的一层：Qt 在 Android 上的系统证书来自 `QtNative.getSSLCertificates()`（本 APK 不含
@@ -337,6 +409,9 @@ qbittorrent-android/
 - **修复 qb 5.2.3（Qt6）打开 WebUI 时闪退**：`JNI_OnLoad` 缓存 app ClassLoader +
   `getMethodID`/`getFieldID` NULL `jclass` 守卫（详见「关键技术问题 5」），
   真机与 CI emulator-smoke 均通过
+- **修复 qb 5.2.3 添加种子闪退**（按 URL / 畸形磁力 / 损坏文件触发，Boost 异常跨 DSO 未捕获）
+- **三个变体改为不同包名**（`.qb439` / `.qb467` / `.qb523`）可同时安装；
+  release 包改用固定密钥签名（可覆盖安装）
 - 5.2.3 变体升级到 Qt 6.6.3 + C++20
 - libtorrent/qBittorrent 改用 API 35 target 编译（修复 Android 16 TLS 对齐问题）
 - 修复 CI 构建产物缺少 Qt 库的问题
