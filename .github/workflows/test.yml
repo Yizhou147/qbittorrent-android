@@ -211,19 +211,21 @@ jobs:
       - name: Install emulator and system image
         if: steps.build.outputs.has_apk == 'true'
         run: |
-          sdkmanager --install "platform-tools" "emulator" "system-images;android-33;google_apis;x86_64" > /dev/null
+          sdkmanager --install "platform-tools" "emulator" "system-images;android-30;google_apis;x86_64" > /dev/null
           echo "y" | sdkmanager --licenses > /dev/null || true
 
       - name: Start emulator
         if: steps.build.outputs.has_apk == 'true'
         run: |
-          # 注: API 30 镜像的 ndk_translation 连基线指令 fcvtzs (double->int) 都没实现,
-          # 会让 qb 在算 BT 状态时 SIGILL, 故改用更新镜像 (若新镜像没有 ARM 翻译需回退)。
+          # 注: API 30 x86_64 是最后一个带 ARM 翻译的镜像 (33 会 INSTALL_FAILED_NO_MATCHING_ABIS),
+          # 但它的 ndk_translation 连基线指令 fcvtzs (double->int) 都没实现, qb 一算 BT 状态就 SIGILL。
+          # 所以与 BT 相关的功能用例 (种子增删/真实下载) 不在模拟器上跑, 改用 ci/smoke-functional.sh
+          # 在真机上执行。
           # avdmanager 与 emulator 的 AVD home 可能不一致, 显式统一
           export ANDROID_AVD_HOME=$HOME/.android/avd
           mkdir -p "$ANDROID_AVD_HOME"
           echo no | avdmanager create avd -n qbt-test \
-            -k "system-images;android-33;google_apis;x86_64" -d pixel --force
+            -k "system-images;android-30;google_apis;x86_64" -d pixel --force
           avdmanager list avd
           ${ANDROID_HOME}/emulator/emulator -avd qbt-test \
             -no-window -no-audio -no-boot-anim -no-snapshot \
@@ -359,149 +361,6 @@ jobs:
           grep -qi "<title>VueTorrent</title>" /tmp/index.html \
             || echo "::warning::页面里没有 <title>VueTorrent</title>, 可能只命中了部分资源"
           echo "OK: 变体参数 / 配置 / VueTorrent 断言通过 (save_path=$SAVE_PATH)"
-
-      - name: Smoke - 种子 添加/暂停/恢复/删除 往返
-        if: steps.build.outputs.has_apk == 'true'
-        run: |
-          BASE=http://localhost:18080
-          HOSTH=(-H "Host: localhost:8080" -H "Referer: http://localhost:8080")
-          PKG="${{ matrix.pkg }}"
-          . ci/smoke-lib.sh
-          PID_BEFORE=$(adb shell pidof -s "$PKG" | tr -d '\r')
-          echo "pid before: $PID_BEFORE"
-
-          HASH=$(python3 ci/make-test-torrent.py /tmp/smoke.torrent)
-          echo "test torrent info-hash: $HASH"
-
-          echo "=== 1) 添加种子 (multipart 上传 .torrent) ==="
-          CODE=$(curl -s -o /tmp/add.out -w '%{http_code}' --max-time 30 "${HOSTH[@]}" \
-            -F "torrents=@/tmp/smoke.torrent;type=application/x-bittorrent" \
-            "$BASE/api/v2/torrents/add")
-          echo "torrents/add HTTP $CODE -> $(cat /tmp/add.out)"
-          [ "$CODE" = "200" ] || { echo "::error::添加种子返回 HTTP $CODE"; exit 1; }
-
-          echo "=== 2) 确认种子出现在 /torrents/info ==="
-          INFO=""
-          FOUND=0
-          for i in $(seq 1 10); do
-            INFO=$(curl -s --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/torrents/info")
-            if echo "$INFO" | jq -e --arg h "$HASH" 'map(select(.hash == $h)) | length > 0' > /dev/null 2>&1; then
-              FOUND=1; break
-            fi
-            echo "attempt $i: 还没出现"
-            sleep 3
-          done
-          if [ "$FOUND" != "1" ]; then
-            echo "::error::种子未出现在 /torrents/info"; echo "$INFO" | head -c 400; exit 1
-          fi
-          echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | "name=\(.name) state=\(.state) size=\(.size) progress=\(.progress)"'
-          # Java 层通过 API 设置的下载路径要生效 (prefs 接口在模拟器上不可用, 改从 torrent 上看)
-          TOR_SAVE=$(echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | .save_path')
-          echo "torrent save_path=$TOR_SAVE"
-          [ -n "$TOR_SAVE" ] && [ "$TOR_SAVE" != "null" ] \
-            || { echo "::error::torrent 的 save_path 为空 (Java 层设置的下载路径没生效)"; exit 1; }
-          case "$TOR_SAVE" in *Download*) ;; *) echo "::error::save_path 不是 Java 设置的下载目录: $TOR_SAVE"; exit 1;; esac
-
-          echo "=== 3) 暂停 / 恢复 ==="
-          curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$HASH" "$BASE/api/v2/torrents/pause" > /dev/null
-          sleep 2
-          STATE=$(curl -s --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/torrents/info" \
-            | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | .state')
-          echo "pause 后 state=$STATE"
-          [[ "$STATE" == paused* ]] || { echo "::error::暂停未生效 (state=$STATE)"; exit 1; }
-          curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$HASH" "$BASE/api/v2/torrents/resume" > /dev/null
-
-          echo "=== 4) 删除 ==="
-          curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$HASH&deleteFiles=false" \
-            "$BASE/api/v2/torrents/delete" > /dev/null
-          sleep 2
-          LEFT=$(curl -s --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/torrents/info" \
-            | jq -r --arg h "$HASH" 'map(select(.hash==$h)) | length')
-          [ "$LEFT" = "0" ] || { echo "::error::删除后种子仍在列表里"; exit 1; }
-
-          echo "=== 5) 进程与 logcat 复检 (添加种子后是否崩) ==="
-          PID_AFTER=$(adb shell pidof -s "$PKG" | tr -d '\r')
-          echo "pid after: $PID_AFTER"
-          [ "$PID_BEFORE" = "$PID_AFTER" ] || { echo "::error::种子操作过程中进程被重启 ($PID_BEFORE -> $PID_AFTER)"; exit 1; }
-          adb shell logcat -d > logcat-torrent.txt
-          if awk -v p="$PID_AFTER" '$3==p' logcat-torrent.txt \
-               | grep -E "JNI DETECTED|Fatal signal|SIGABRT|Abort message|FATAL EXCEPTION"; then
-            echo "::error::种子操作后 logcat 出现本进程致命错误 (见上方)"; exit 1
-          fi
-          echo "OK: 添加/暂停/恢复/删除 往返通过"
-
-      - name: Smoke - 真实下载端到端 (离线 web seed, 校验文件内容)
-        if: steps.build.outputs.has_apk == 'true'
-        run: |
-          # 完全离线: 宿主机起一个 http 服务, 生成的种子用 url-list (BEP 19 web seed)
-          # 指向 http://10.0.2.2:<port> (模拟器眼里宿主机的 loopback), qb 自己就能下完,
-          # 不需要外网也不需要 peer。下载完成后把设备上的文件取回来核对 SHA1。
-          BASE=http://localhost:18080
-          HOSTH=(-H "Host: localhost:8080" -H "Referer: http://localhost:8080")
-          PKG="${{ matrix.pkg }}"
-          . ci/smoke-lib.sh
-          WEBSEED_PORT=8899
-          SRV_DIR=/tmp/webseed
-          mkdir -p "$SRV_DIR"
-
-          # 生成 256KB 的测试内容 + 指向它的种子
-          HASH=$(python3 ci/make-test-torrent.py "$SRV_DIR/payload.torrent" 262144 \
-                   "http://10.0.2.2:${WEBSEED_PORT}/payload.bin")
-          cp "$SRV_DIR/payload.torrent.content" "$SRV_DIR/payload.bin"
-          SRC_SHA=$(sha1sum "$SRV_DIR/payload.bin" | awk '{print $1}')
-          echo "info-hash=$HASH 源文件 sha1=$SRC_SHA"
-          (cd "$SRV_DIR" && nohup python3 -m http.server "$WEBSEED_PORT" --bind 0.0.0.0 > /tmp/webseed.log 2>&1 &)
-          sleep 2
-          curl -sf -o /dev/null "http://127.0.0.1:${WEBSEED_PORT}/payload.bin" \
-            || { echo "::error::宿主 http 服务没起来"; exit 1; }
-
-          PID_BEFORE=$(adb shell pidof -s "$PKG" | tr -d '\r')
-          echo "pid before: $PID_BEFORE"
-          SAVE_PATH=""
-
-          echo "=== 添加种子 (multipart 上传, 带 web seed) ==="
-          CODE=$(curl -s -o /tmp/dl-add.out -w '%{http_code}' --max-time 30 "${HOSTH[@]}" \
-            -F "torrents=@${SRV_DIR}/payload.torrent;type=application/x-bittorrent" \
-            "$BASE/api/v2/torrents/add")
-          echo "torrents/add HTTP $CODE -> $(head -c 120 /tmp/dl-add.out)"
-          [ "$CODE" = "200" ] || { echo "::error::添加种子失败 HTTP $CODE"; exit 1; }
-
-          echo "=== 等下载完成 (最多 4 分钟) ==="
-          DONE=0
-          for i in $(seq 1 48); do
-            INFO=$(curl -s --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/torrents/info" || true)
-            P=$(echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | .progress' 2>/dev/null | head -1)
-            ST=$(echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | .state' 2>/dev/null | head -1)
-            SAVE_PATH=$(echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | .save_path' 2>/dev/null | head -1)
-            echo "  第 $i 次: state=$ST progress=$P"
-            if [ "$P" = "1" ]; then DONE=1; break; fi
-            sleep 5
-          done
-          if [ "$DONE" != "1" ]; then
-            echo "::error::4 分钟内没下载完成 (state=$ST progress=$P)"
-            echo "$INFO" | head -c 400
-            cat /tmp/webseed.log | tail -20
-            adb shell logcat -d 2>/dev/null | grep -iE "torrent|web seed|url-list|error" | tail -20
-            exit 1
-          fi
-          echo "下载完成: state=$ST save_path=$SAVE_PATH"
-
-          echo "=== 校验设备上的文件内容 ==="
-          REMOTE_FILE="${SAVE_PATH}/qbittorrent-android-smoke.bin"
-          DEV_SHA=$(adb exec-out "cat '${REMOTE_FILE}'" 2>/dev/null | sha1sum | awk '{print $1}')
-          echo "设备文件 sha1=$DEV_SHA"
-          [ -n "$DEV_SHA" ] && [ "$DEV_SHA" != "da39a3ee5e6b4b0d3255bfef95601890afd80709" ] \
-            || { echo "::error::读不到设备上的下载文件: $REMOTE_FILE"; adb shell "ls -l '${SAVE_PATH}'" 2>&1 | head -10; exit 1; }
-          [ "$DEV_SHA" = "$SRC_SHA" ] \
-            || { echo "::error::下载文件内容与源文件不一致 (设备 $DEV_SHA vs 源 $SRC_SHA)"; exit 1; }
-          echo "OK: 离线 web seed 下载完成且内容一致"
-
-          echo "=== 清理 ==="
-          curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$HASH&deleteFiles=true" \
-            "$BASE/api/v2/torrents/delete" > /dev/null || true
-          pkill -f "http.server ${WEBSEED_PORT}" 2>/dev/null || true
-          PID_AFTER=$(adb shell pidof -s "$PKG" | tr -d '\r')
-          [ "$PID_BEFORE" = "$PID_AFTER" ] || { echo "::error::下载过程中进程被重启"; exit 1; }
 
       - name: Smoke - 非法输入只报错不崩溃 (URL/畸形磁力/损坏文件)
         if: steps.build.outputs.has_apk == 'true'
