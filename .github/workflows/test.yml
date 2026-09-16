@@ -127,12 +127,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 三个变体全覆盖: 4.3.9 (libtorrent 1.2 + VueTorrent v0.13) /
-        # 4.6.7 (Qt5 长期基线) / 5.2.3 (Qt6 运行时)
+        # 三个变体全覆盖: 4.3.9 (Qt5 + libtorrent 1.2) / 4.6.7 (Qt5 长期基线) /
+        # 5.2.3 (Qt6 运行时)。qt/libtorrent 用于冒烟测试里断言 buildInfo。
         include:
           - version: '4.3.9'
+            qt: '5.15.2'
+            libtorrent: '1.2.20'
           - version: '4.6.7'
+            qt: '5.15.2'
+            libtorrent: '2.0.10'
           - version: '5.2.3'
+            qt: '6.6.3'
+            libtorrent: '2.0.14'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # 模拟器上的 ARM 指令翻译较慢且环境不可控, 暂不作为阻塞门禁
@@ -256,6 +262,76 @@ jobs:
             echo "ERROR: 期望版本 $EXPECTED, 实际 $VERSION"
             exit 1
           fi
+
+      - name: Smoke - 无崩溃标记, 进程未重启
+        if: steps.build.outputs.has_apk == 'true'
+        run: |
+          APP=com.qbittorrent.android
+          PID1=$(adb shell pidof -s "$APP" | tr -d '\r')
+          echo "pid (WebUI 就绪时): $PID1"
+          [ -n "$PID1" ] || { echo "::error::应用进程不存在"; exit 1; }
+          # 再跑 20 秒: 覆盖"WebUI 能应答但随后才崩"这一类 (本次 5.2.3 崩溃就是启动末期)
+          sleep 20
+          PID2=$(adb shell pidof -s "$APP" | tr -d '\r')
+          echo "pid (20s 后): $PID2"
+          [ "$PID1" = "$PID2" ] || { echo "::error::进程被重启过 ($PID1 -> $PID2)"; exit 1; }
+
+          adb shell logcat -d > logcat-smoke.txt
+          echo "本进程日志行数: $(awk -v p="$PID2" '$3==p' logcat-smoke.txt | wc -l)"
+          # 只看本进程 (pid 列) 的行, 避免设备上其他应用的报错误伤
+          if awk -v p="$PID2" '$3==p' logcat-smoke.txt | grep -E "JNI DETECTED|Fatal signal|SIGABRT|Abort message|FATAL EXCEPTION"; then
+            echo "::error::logcat 中出现本进程的致命错误 (见上方)"
+            exit 1
+          fi
+          if grep -qE "Scheduling restart of crashed service ${APP}" logcat-smoke.txt; then
+            echo "::error::Service 被系统按崩溃重启过"
+            exit 1
+          fi
+          # 已知问题 (README「已知问题」第 5 条): 插件未加载 -> TLS 后端不可用。先只提示, 修好后升级成断言
+          if grep -q "No functional TLS backend was found" logcat-smoke.txt; then
+            echo "::warning::出现 'No functional TLS backend was found' (已知: 未设置 QT_PLUGIN_PATH, 插件未加载)"
+          fi
+          echo "OK: 无崩溃标记, 进程未重启"
+
+      - name: Smoke - buildInfo / preferences / VueTorrent 断言
+        if: steps.build.outputs.has_apk == 'true'
+        run: |
+          BASE=http://localhost:18080
+          # qb 会校验 Host 头; 部分请求还要同源 Referer/Origin
+          HOSTH=(-H "Host: localhost:8080" -H "Referer: http://localhost:8080")
+          EXPECT_QT="${{ matrix.qt }}"
+          EXPECT_LT="${{ matrix.libtorrent }}"
+
+          echo "=== buildInfo: 变体的 Qt / libtorrent 版本必须与矩阵一致 ==="
+          CODE=$(curl -s -o /tmp/bi.json -w '%{http_code}' --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/app/buildInfo")
+          echo "buildInfo HTTP $CODE"; cat /tmp/bi.json; echo
+          [ "$CODE" = "200" ] || { echo "::error::buildInfo 返回 HTTP $CODE (403 通常是认证问题)"; exit 1; }
+          BI_QT=$(jq -r '.qt // empty' /tmp/bi.json)
+          BI_LT=$(jq -r '.libtorrent // empty' /tmp/bi.json)
+          [[ "$BI_QT" == *"$EXPECT_QT"* ]] || { echo "::error::Qt 版本不符: 期望含 $EXPECT_QT, 实际 '$BI_QT'"; exit 1; }
+          [[ "$BI_LT" == *"$EXPECT_LT"* ]] || { echo "::error::libtorrent 版本不符: 期望含 $EXPECT_LT, 实际 '$BI_LT'"; exit 1; }
+
+          echo "=== preferences: Java 层启动时写入的配置 ==="
+          CODE=$(curl -s -o /tmp/prefs.json -w '%{http_code}' --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/app/preferences")
+          echo "preferences HTTP $CODE"
+          [ "$CODE" = "200" ] || { echo "::error::preferences 返回 HTTP $CODE (403 通常是认证问题)"; exit 1; }
+          jq -r '"web_ui_port=\(.web_ui_port) alternative_webui_enabled=\(.alternative_webui_enabled) save_path=\(.save_path)"' /tmp/prefs.json
+          [ "$(jq -r '.web_ui_port' /tmp/prefs.json)" = "8080" ] \
+            || { echo "::error::web_ui_port 不是 8080"; exit 1; }
+          [ "$(jq -r '.alternative_webui_enabled' /tmp/prefs.json)" = "true" ] \
+            || { echo "::error::alternative_webui_enabled 未开启"; exit 1; }
+          SAVE_PATH=$(jq -r '.save_path // empty' /tmp/prefs.json)
+          [ -n "$SAVE_PATH" ] || { echo "::error::save_path 为空"; exit 1; }
+
+          echo "=== 根路径应返回 VueTorrent 页面 (验证 zip 解压 + alt UI 生效) ==="
+          CODE=$(curl -s -o /tmp/index.html -w '%{http_code}' --max-time 15 "${HOSTH[@]}" "$BASE/")
+          echo "GET / HTTP $CODE"
+          [ "$CODE" = "200" ] || { echo "::error::GET / 返回 HTTP $CODE"; exit 1; }
+          grep -qi "vuetorrent" /tmp/index.html \
+            || { echo "::error::/ 不是 VueTorrent 页面, 前 200 字节: $(head -c 200 /tmp/index.html)"; exit 1; }
+          grep -qi "<title>VueTorrent</title>" /tmp/index.html \
+            || echo "::warning::页面里没有 <title>VueTorrent</title>, 可能只命中了部分资源"
+          echo "OK: 变体参数 / 配置 / VueTorrent 断言通过 (save_path=$SAVE_PATH)"
 
       - name: Collect logs on failure
         if: failure() && steps.build.outputs.has_apk == 'true'
