@@ -170,6 +170,19 @@
 
 触发条件：push/PR 到 main 时跑 1、2；构建工作流完成后跑 3。
 
+**冒烟测试不需要重新构建 APK**：`emulator-smoke` 用的是已有构建产物——
+
+```bash
+# 用某次构建的 APK 跑冒烟 (不触发任何编译)
+gh workflow run test.yml -f build_run_id=<构建 run id>
+
+# 留空则自动取最近一次成功的构建
+gh workflow run test.yml
+```
+
+APK artifact 保留 90 天。所以验证测试代码本身、或复测某个历史版本的包时，不必重新出包；
+只有 APK 内容真的改了（改 Java/qb 补丁/Qt 补丁）才需要重新构建。
+
 ### 方式二：本地 Docker 构建
 
 #### 环境要求
