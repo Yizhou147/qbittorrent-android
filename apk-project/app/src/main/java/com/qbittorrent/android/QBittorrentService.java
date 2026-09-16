@@ -393,9 +393,14 @@ public class QBittorrentService extends Service {
             // Wait for WebUI port to be ready, then set password on first run
             final File profileDir = configDir;
             new Thread(() -> {
-                for (int i = 0; i < 30; i++) {
+                // 最多等 4 分钟 (每 2 秒探一次, 就绪即返回):
+                // 慢设备和新装首次启动时, qb 把 WebUI 拉起来可能要 1-2 分钟; 之前 30 秒的窗口
+                // 会超时, 而"设置默认密码 / 切换 WebUI 类型 / 设置下载路径"这三件事正是在这个
+                // 线程里、探测到端口后才做的 —— 超时等于它们全都不会执行。
+                final int maxAttempts = 120;
+                for (int i = 0; i < maxAttempts; i++) {
                     try {
-                        Thread.sleep(1000);
+                        Thread.sleep(2000);
                         Socket s = new Socket("127.0.0.1", webuiPort);
                         s.close();
                         broadcastLog("INFO", "WebUI 就绪: http://localhost:" + webuiPort);
@@ -407,7 +412,7 @@ public class QBittorrentService extends Service {
                         return;
                     } catch (Exception ignored) {}
                 }
-                broadcastLog("WARN", "WebUI 端口 " + webuiPort + " 未就绪（超时30秒）");
+                broadcastLog("WARN", "WebUI 端口 " + webuiPort + " 未就绪（已等待 " + (maxAttempts * 2) + " 秒）");
             }).start();
 
             broadcastLog("INFO", "qBittorrent 启动线程已创建");
