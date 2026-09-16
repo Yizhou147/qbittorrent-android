@@ -158,6 +158,13 @@ backtrace: TorrentDescriptor::parse / load  <-  TorrentsController::addAction
 qb 5.2.3 的 `TorrentDescriptor` 五个入口（`parse` / `load` / `loadFromFile` /
 `saveToFile` / `saveToBuffer`）都是这个形状。
 
+**为什么 4.3.9 / 4.6.7 不受影响**：它们没有 `TorrentDescriptor`，取种子/磁力用的是 libtorrent 的
+**error_code 版本** API（`lt::parse_magnet_uri(url, params, ec)`、`lt::bdecode(data, ec, ...)`），
+根本不抛异常，也就用不到这些 catch；只有 qb 5.x 新引入的 `TorrentDescriptor` 用的是**抛异常**的
+封装（`lt::parse_magnet_uri(string)` / `lt::load_torrent_buffer(...)`），才踩到我们这种静态 Boost
+构建下「跨 DSO 异常类型身份不一致」的坑。所以同一个 URL 在 4.3.9/4.6.7 正常、在 5.2.3 崩；
+这个补丁只加在 5.2.3 上。
+
 **解决方案**：`ci/patches/5.2.3/050-torrentdescriptor-catchall.patch` 给这五处各补
 `catch (const std::exception &)` + `catch (...)`。`catch (...)` 不依赖类型匹配，是绕开
 跨 DSO 类型身份问题的确定性兜底；异常退化为返回错误信息，WebUI 报错而不是进程崩溃。
