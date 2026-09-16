@@ -211,17 +211,19 @@ jobs:
       - name: Install emulator and system image
         if: steps.build.outputs.has_apk == 'true'
         run: |
-          sdkmanager --install "platform-tools" "emulator" "system-images;android-30;google_apis;x86_64" > /dev/null
+          sdkmanager --install "platform-tools" "emulator" "system-images;android-33;google_apis;x86_64" > /dev/null
           echo "y" | sdkmanager --licenses > /dev/null || true
 
       - name: Start emulator
         if: steps.build.outputs.has_apk == 'true'
         run: |
+          # 注: API 30 镜像的 ndk_translation 连基线指令 fcvtzs (double->int) 都没实现,
+          # 会让 qb 在算 BT 状态时 SIGILL, 故改用更新镜像 (若新镜像没有 ARM 翻译需回退)。
           # avdmanager 与 emulator 的 AVD home 可能不一致, 显式统一
           export ANDROID_AVD_HOME=$HOME/.android/avd
           mkdir -p "$ANDROID_AVD_HOME"
           echo no | avdmanager create avd -n qbt-test \
-            -k "system-images;android-30;google_apis;x86_64" -d pixel --force
+            -k "system-images;android-33;google_apis;x86_64" -d pixel --force
           avdmanager list avd
           ${ANDROID_HOME}/emulator/emulator -avd qbt-test \
             -no-window -no-audio -no-boot-anim -no-snapshot \
