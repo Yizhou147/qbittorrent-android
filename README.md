@@ -310,11 +310,24 @@ qbittorrent-android/
 2. **内存占用**：Qt5 和 libtorrent 较大，建议设备至少 2GB RAM
 3. **Android 版本**：`minSdk 24`（Android 7.0+），仅在较新版本上实测过，低版本未验证
 4. **架构限制**：仅支持 ARM64 设备
-5. **HTTPS tracker / 系统证书 / SQLite 持久化暂不可用**：Qt 的插件搜索路径默认指向编译期
-   prefix（设备上不存在），而 Java/桥接层没有设置 `QT_PLUGIN_PATH`，所以 `third-party/` 里的
-   `libplugins_tls_*`、`libplugins_sqldrivers_*` 实际没有被加载（logcat 可见
-   `qt.network.ssl: No functional TLS backend was found`）。修法：在 JNI 桥接里
-   `setenv("QT_PLUGIN_PATH", <nativeLibraryDir>, 1)`（约 10 行，待办）
+5. **Qt 侧 HTTPS 与 SQLite 插件未加载**：Qt 的插件搜索路径来自编译期 prefix（设备上不存在），
+   Java / 桥接层也没有设置 `QT_PLUGIN_PATH`，所以 `third-party/` 里的 `libplugins_tls_*`、
+   `libplugins_sqldrivers_*` 实际**没有被加载**（logcat 可见
+   `qt.network.ssl: No functional TLS backend was found`）。具体影响：
+
+   - **BT 本体不受影响**：tracker（含 HTTPS tracker）由 libtorrent 处理，用的是静态链进
+     libqbt 的 OpenSSL —— `libqbt.so` 的 NEEDED 里没有 `libssl.so` 就是证据；
+   - 受影响的是**走 Qt 网络栈的 HTTPS**：RSS 订阅（HTTPS 源）、GeoIP 数据库下载、搜索插件更新、
+     WebUI 若启用 HTTPS；
+   - **SQLite 影响很小**：qb 的 `ResumeDataStorageType` 默认是 `Legacy`（`.fastresume` 文件，
+     4.6.7 与 5.2.3 都是），只有用户在 WebUI 高级设置里显式切到 SQLite 才会用到 qsqlite 驱动；
+   - 还有独立的一层：Qt 在 Android 上的系统证书来自 `QtNative.getSSLCertificates()`（本 APK 不含
+     该 Java 类）→ CA 列表为空；而 Qt6 的 OpenSSL 后端**不调用**
+     `SSL_CTX_set_default_verify_paths`（已在发布插件的符号表里确认没有该符号），
+     所以即使 TLS 插件加载成功，Qt 侧 HTTPS 仍会因证书验证失败而连不上。
+     要真正可用是**两步**：① 桥接里 `setenv("QT_PLUGIN_PATH", <nativeLibraryDir>, 1)`；
+     ② 把 CA 证书注入 `QSslConfiguration::defaultConfiguration()`（用 Java 侧已复制好的
+     `ca-certificates.crt`，qb 本身没有任何 CA 处理）。目前状态：待办。
 
 ## 版本历史
 
