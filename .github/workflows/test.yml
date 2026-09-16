@@ -83,6 +83,9 @@ jobs:
           if [ "${{ matrix.version }}" = "5.2.3" ]; then
             echo "=== 5.2.3: rcc 禁用 zstd ==="
             grep -q -- "--no-zstd" cmake/Modules/CommonConfig.cmake
+            echo "=== 5.2.3: TorrentDescriptor 异常兜底 (防添加种子/损坏文件闪退) ==="
+            test "$(grep -c 'catch (const std::exception &err)' src/base/bittorrent/torrentdescriptor.cpp)" = "5"
+            test "$(grep -c 'catch (\.\.\.)' src/base/bittorrent/torrentdescriptor.cpp)" = "5"
           fi
           echo "OK: ${{ matrix.version }} 补丁校验通过"
 
