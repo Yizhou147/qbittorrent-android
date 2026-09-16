@@ -341,13 +341,10 @@ jobs:
           #   - 端口: qb 启动日志里的监听地址 (数字, 与语言无关)
           #   - alt-UI: 根路径返回 VueTorrent (下面已校验)
           #   - 下载路径: 在"种子往返"步骤里断言 torrent 的 save_path
-          echo "=== qb 监听端口 (来自 qb 日志) ==="
-          LOGS=$(curl -s --max-time 20 "${HOSTH[@]}" \
-            "$BASE/api/v2/log/main?normal=true&info=true&warning=true&critical=true" || true)
-          echo "$LOGS" | grep -o "0\.0\.0\.0:8080" | head -1
-          echo "$LOGS" | grep -q "0\.0\.0\.0:8080" \
-            || { echo "::error::qb 没有按 Java 层设置的端口 8080 监听"; exit 1; }
-          SAVE_PATH="(见种子往返步骤)"
+          # WebUI 端口不需要单独断言: 本步骤及后续所有请求都打在 http://localhost:18080
+          # (adb forward 到设备 8080) 上, 端口不对根本走不到这里。
+          # 注: qb 日志里"尝试侦听下列 IP 地址列表"那行报的是 BT 监听端口(随机), 不是 WebUI 端口,
+          #     之前误用它做断言导致误报, 已移除。
 
           echo "=== 根路径应返回 VueTorrent 页面 (验证 zip 解压 + alt UI 生效) ==="
           CODE=$(fetch "$BASE/" /tmp/index.html "${HOSTH[@]}")
