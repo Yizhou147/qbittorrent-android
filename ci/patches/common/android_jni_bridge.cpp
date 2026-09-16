@@ -14,6 +14,7 @@
 #include <climits>
 #include <dlfcn.h>
 #include <sys/stat.h>
+#include <sys/system_properties.h>
 #include <sys/types.h>
 
 #include <QList>
@@ -46,6 +47,21 @@ static void setupQtPluginPath() {
     *slash = '\0';
     if (dir[0] != '\0')
         setenv("QT_PLUGIN_PATH", dir, 1);
+}
+
+// x86_64 模拟器是把 arm64 代码经 ndk_translation 翻译执行的, 而翻译器没有实现
+// ARMv8 的加密指令 (SHA/AES 那一类)。OpenSSL 的运行时能力检测会把它们当成可用,
+// 一旦执行到就 SIGILL 直接杀进程 —— 例如 WebUI 读 preferences 时要渲染 HTTPS 证书
+// (走 SHA256)。这里只在模拟器上关掉 OpenSSL 的运行时加速 (退回纯 C 实现),
+// 真机保持原样, 性能不受影响。
+static void disableOpenSslAccelerationOnEmulator() {
+    char value[PROP_VALUE_MAX] = {0};
+    if (__system_property_get("ro.kernel.qemu", value) <= 0)
+        return;
+    if (value[0] != '1')
+        return;
+    // 0 = 关闭全部运行时检测到的能力 (OpenSSL 支持用环境变量覆盖)
+    setenv("OPENSSL_armcap", "0", 1);
 }
 
 // 把 Java 侧已经复制好的 CA 证书灌给 Qt。
@@ -141,6 +157,8 @@ Java_com_qbittorrent_android_QBittorrentService_nativeMain(
 
     // Qt 侧: 插件搜索路径 (tls/sqldrivers) + CA 证书, 都必须在 qb 的 main() 之前就绪。
     // 前者决定 QSslSocket 能不能有 TLS 后端, 后者决定 https 证书能不能验证通过。
+    // 注意顺序: 模拟器上先关掉 OpenSSL 加速, 再做任何会用到 OpenSSL 的事情。
+    disableOpenSslAccelerationOnEmulator();
     setupQtPluginPath();
     if (caBundlePath[0])
         setupQtCaCertificates(caBundlePath);
