@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 5.2.3 变体的桌面名称: 三个变体共存时用于区分 (main 里的值是 qBittorrent) -->
+    <string name="app_name">qBittorrent 5.2.3</string>
+</resources>

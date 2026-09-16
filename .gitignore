@@ -19,6 +19,11 @@ out/
 build/
 local.properties
 
+# 签名相关 (绝不能进仓库: 本仓库是 public)
+signing.properties
+*.jks
+*.keystore
+
 # Android Studio
 *.iml
 .idea/

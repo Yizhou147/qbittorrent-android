@@ -49,16 +49,42 @@ jobs:
           # 会以 "Failed to find package 'tools'" + 退出码 1 失败, 故显式指定存在的包
           packages: 'platform-tools'
 
-      - name: Build APK
+      - name: Decode release keystore (if configured)
+        env:
+          KEYSTORE_B64: ${{ secrets.QBT_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::未配置 QBT_KEYSTORE_BASE64, 本次回退 debug 签名 (这样的包无法互相覆盖安装)"
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          {
+            echo "QBT_KEYSTORE_FILE=$RUNNER_TEMP/release.jks"
+            echo "QBT_KEYSTORE_PASSWORD=${{ secrets.QBT_KEYSTORE_PASSWORD }}"
+            echo "QBT_KEY_ALIAS=${{ secrets.QBT_KEY_ALIAS }}"
+            echo "QBT_KEY_PASSWORD=${{ secrets.QBT_KEY_PASSWORD }}"
+          } >> "$GITHUB_ENV"
+          echo "已注入正式签名配置"
+
+      - name: Build APK (v467 flavor)
         run: |
           cd apk-project
           chmod +x gradlew
-          ./gradlew assembleRelease
+          ./gradlew assembleV467Release
 
       - name: Rename APK
         run: |
-          mv apk-project/app/build/outputs/apk/release/app-release.apk \
+          mv apk-project/app/build/outputs/apk/v467/release/app-v467-release.apk \
              qbittorrent-android-qb4.6.7-${{ inputs.version_tag }}.apk
+
+      - name: Verify APK signature and package id
+        run: |
+          APK="qbittorrent-android-qb4.6.7-${{ inputs.version_tag }}.apk"
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          AAPT=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK" | head -6
+          echo "expected package id: com.qbittorrent.android.qb467"
+          "$AAPT" dump packagename "$APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

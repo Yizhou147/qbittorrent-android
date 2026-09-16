@@ -78,6 +78,8 @@ jobs:
               echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
               # 新版 clang 将 narrowing 聚合初始化视为错误，1.2.x 源码有多处
               echo "extra_lt_flags=-Wno-error=c++11-narrowing-const-ref -Wno-error=c++11-narrowing" >> $GITHUB_OUTPUT
+              echo "flavor=v439"                   >> $GITHUB_OUTPUT
+              echo "app_id=com.qbittorrent.android.qb439" >> $GITHUB_OUTPUT
               ;;
             4.6.7)
               echo "qbt_ref=release-4.6.7"   >> $GITHUB_OUTPUT
@@ -87,6 +89,8 @@ jobs:
               echo "cxx_standard=17"         >> $GITHUB_OUTPUT
               echo "extra_flags="            >> $GITHUB_OUTPUT
               echo "extra_lt_flags="         >> $GITHUB_OUTPUT
+              echo "flavor=v467"             >> $GITHUB_OUTPUT
+              echo "app_id=com.qbittorrent.android.qb467" >> $GITHUB_OUTPUT
               ;;
             5.2.3)
               echo "qbt_ref=release-5.2.3"        >> $GITHUB_OUTPUT
@@ -97,6 +101,8 @@ jobs:
               # rcc zstd 问题由 ci/patches/5.2.3/040-rcc-no-zstd.patch 处理
               echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
               echo "extra_lt_flags="              >> $GITHUB_OUTPUT
+              echo "flavor=v523"                  >> $GITHUB_OUTPUT
+              echo "app_id=com.qbittorrent.android.qb523" >> $GITHUB_OUTPUT
               ;;
             *)
               echo "Unknown version: ${{ matrix.version }}" >&2
@@ -259,16 +265,47 @@ jobs:
           # 会以 "Failed to find package 'tools'" + 退出码 1 失败, 故显式指定存在的包
           packages: 'platform-tools'
 
-      - name: Build APK
+      - name: Decode release keystore (if configured)
+        env:
+          KEYSTORE_B64: ${{ secrets.QBT_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::未配置 QBT_KEYSTORE_BASE64, 本次回退 debug 签名 (这样的包无法互相覆盖安装)"
+            exit 0
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          {
+            echo "QBT_KEYSTORE_FILE=$RUNNER_TEMP/release.jks"
+            echo "QBT_KEYSTORE_PASSWORD=${{ secrets.QBT_KEYSTORE_PASSWORD }}"
+            echo "QBT_KEY_ALIAS=${{ secrets.QBT_KEY_ALIAS }}"
+            echo "QBT_KEY_PASSWORD=${{ secrets.QBT_KEY_PASSWORD }}"
+          } >> "$GITHUB_ENV"
+          echo "已注入正式签名配置"
+
+      - name: Build APK (${{ steps.params.outputs.flavor }})
         run: |
           cd apk-project
           chmod +x gradlew
-          ./gradlew assembleRelease
+          TASK="assemble$(echo '${{ steps.params.outputs.flavor }}' | sed 's/^v/V/')Release"
+          echo "gradle task: $TASK"
+          ./gradlew "$TASK"
 
       - name: Rename APK
         run: |
-          mv apk-project/app/build/outputs/apk/release/app-release.apk \
-             qbittorrent-android-qb${{ matrix.version }}-${{ steps.version.outputs.version }}.apk
+          FLAVOR="${{ steps.params.outputs.flavor }}"
+          SRC="apk-project/app/build/outputs/apk/${FLAVOR}/release/app-${FLAVOR}-release.apk"
+          DST="qbittorrent-android-qb${{ matrix.version }}-${{ steps.version.outputs.version }}.apk"
+          mv "$SRC" "$DST"
+          echo "APK: $DST"
+
+      - name: Verify APK signature and package id
+        run: |
+          APK="qbittorrent-android-qb${{ matrix.version }}-${{ steps.version.outputs.version }}.apk"
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          AAPT=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK" | head -6
+          echo "expected package id: ${{ steps.params.outputs.app_id }}"
+          "$AAPT" dump packagename "$APK"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

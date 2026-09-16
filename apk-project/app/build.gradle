@@ -2,6 +2,24 @@ plugins {
     id 'com.android.application'
 }
 
+// ===== 正式签名 =====
+// 优先级: 本地 signing.properties (已 gitignore) > CI 环境变量 (GitHub Secrets) > debug 签名。
+// debug 签名的 key 每次都不同, 装不上彼此的更新包, 所以正式分发必须用固定密钥。
+// signing.properties 格式 (storeFile 的相对路径按项目根目录解析):
+//   storeFile=/绝对路径/keystore.jks
+//   storePassword=...
+//   keyAlias=...
+//   keyPassword=...      # 可省略, 省略时与 storePassword 相同
+def signProps = new Properties()
+def signPropsFile = rootProject.file('signing.properties')
+def hasSignProps = signPropsFile.exists()
+if (hasSignProps) {
+    signPropsFile.withInputStream { signProps.load(it) }
+}
+def envKeystore = System.getenv('QBT_KEYSTORE_FILE')
+def hasEnvSigning = (envKeystore != null) && !envKeystore.trim().isEmpty()
+def hasReleaseSigning = hasSignProps || hasEnvSigning
+
 android {
     namespace 'com.qbittorrent.android'
     compileSdk 34
@@ -17,10 +35,48 @@ android {
         }
     }
 
+    // 三个 qBittorrent 变体共存: applicationId 后缀不同 -> 可同时安装, 数据目录彼此独立。
+    // namespace 仍是 com.qbittorrent.android, Java 包名不变; JNI 里 FindClass 用的类名
+    // 与 applicationId 无关, 所以改后缀不影响原生层。
+    flavorDimensions 'qb'
+    productFlavors {
+        v439 {
+            dimension 'qb'
+            applicationIdSuffix '.qb439'
+        }
+        v467 {
+            dimension 'qb'
+            applicationIdSuffix '.qb467'
+        }
+        v523 {
+            dimension 'qb'
+            applicationIdSuffix '.qb523'
+        }
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                if (hasSignProps) {
+                    storeFile rootProject.file(signProps.getProperty('storeFile'))
+                    storePassword signProps.getProperty('storePassword')
+                    keyAlias signProps.getProperty('keyAlias')
+                    keyPassword(signProps.getProperty('keyPassword') ?: signProps.getProperty('storePassword'))
+                } else {
+                    storeFile file(envKeystore)
+                    storePassword System.getenv('QBT_KEYSTORE_PASSWORD')
+                    keyAlias System.getenv('QBT_KEY_ALIAS')
+                    keyPassword(System.getenv('QBT_KEY_PASSWORD') ?: System.getenv('QBT_KEYSTORE_PASSWORD'))
+                }
+            }
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.debug
+            // 配了正式签名就用它 (保证后续版本能覆盖安装), 否则回退 debug (仅供本地调试)
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
 
