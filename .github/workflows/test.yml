@@ -137,12 +137,15 @@ jobs:
           - version: '4.3.9'
             qt: '5.15.2'
             libtorrent: '1.2.20'
+            pkg: 'com.qbittorrent.android.qb439'
           - version: '4.6.7'
             qt: '5.15.2'
             libtorrent: '2.0.10'
+            pkg: 'com.qbittorrent.android.qb467'
           - version: '5.2.3'
             qt: '6.6.3'
             libtorrent: '2.0.14'
+            pkg: 'com.qbittorrent.android.qb523'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # 模拟器上的 ARM 指令翻译较慢且环境不可控, 暂不作为阻塞门禁
@@ -229,10 +232,10 @@ jobs:
         run: |
           adb install -r apk/*.apk
           # 预授权存储权限, 避免 MainActivity 启动时被系统对话框/设置页打断
-          adb shell pm grant com.qbittorrent.android android.permission.WRITE_EXTERNAL_STORAGE || true
-          adb shell pm grant com.qbittorrent.android android.permission.READ_EXTERNAL_STORAGE || true
+          adb shell pm grant ${{ matrix.pkg }} android.permission.WRITE_EXTERNAL_STORAGE || true
+          adb shell pm grant ${{ matrix.pkg }} android.permission.READ_EXTERNAL_STORAGE || true
           adb forward tcp:18080 tcp:8080
-          adb shell am start -W -n com.qbittorrent.android/.MainActivity
+          adb shell am start -W -n ${{ matrix.pkg }}/com.qbittorrent.android.MainActivity
           # 应用初始化需要 10-120 秒 (模拟器上 ARM 翻译更慢)
           sleep 15
 
@@ -274,7 +277,7 @@ jobs:
       - name: Smoke - 无崩溃标记, 进程未重启
         if: steps.build.outputs.has_apk == 'true'
         run: |
-          APP=com.qbittorrent.android
+          APP=${{ matrix.pkg }}
           PID1=$(adb shell pidof -s "$APP" | tr -d '\r')
           echo "pid (WebUI 就绪时): $PID1"
           [ -n "$PID1" ] || { echo "::error::应用进程不存在"; exit 1; }
@@ -341,11 +344,74 @@ jobs:
             || echo "::warning::页面里没有 <title>VueTorrent</title>, 可能只命中了部分资源"
           echo "OK: 变体参数 / 配置 / VueTorrent 断言通过 (save_path=$SAVE_PATH)"
 
+      - name: Smoke - 种子 添加/暂停/恢复/删除 往返
+        if: steps.build.outputs.has_apk == 'true'
+        run: |
+          BASE=http://localhost:18080
+          HOSTH=(-H "Host: localhost:8080" -H "Referer: http://localhost:8080")
+          PKG="${{ matrix.pkg }}"
+          PID_BEFORE=$(adb shell pidof -s "$PKG" | tr -d '\r')
+          echo "pid before: $PID_BEFORE"
+
+          HASH=$(python3 ci/make-test-torrent.py /tmp/smoke.torrent)
+          echo "test torrent info-hash: $HASH"
+
+          echo "=== 1) 添加种子 (multipart 上传 .torrent) ==="
+          CODE=$(curl -s -o /tmp/add.out -w '%{http_code}' --max-time 30 "${HOSTH[@]}" \
+            -F "torrents=@/tmp/smoke.torrent;type=application/x-bittorrent" \
+            "$BASE/api/v2/torrents/add")
+          echo "torrents/add HTTP $CODE -> $(cat /tmp/add.out)"
+          [ "$CODE" = "200" ] || { echo "::error::添加种子返回 HTTP $CODE"; exit 1; }
+
+          echo "=== 2) 确认种子出现在 /torrents/info ==="
+          INFO=""
+          FOUND=0
+          for i in $(seq 1 10); do
+            INFO=$(curl -s --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/torrents/info")
+            if echo "$INFO" | jq -e --arg h "$HASH" 'map(select(.hash == $h)) | length > 0' > /dev/null 2>&1; then
+              FOUND=1; break
+            fi
+            echo "attempt $i: 还没出现"
+            sleep 3
+          done
+          if [ "$FOUND" != "1" ]; then
+            echo "::error::种子未出现在 /torrents/info"; echo "$INFO" | head -c 400; exit 1
+          fi
+          echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | "name=\(.name) state=\(.state) size=\(.size) progress=\(.progress)"'
+
+          echo "=== 3) 暂停 / 恢复 ==="
+          curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$HASH" "$BASE/api/v2/torrents/pause" > /dev/null
+          sleep 2
+          STATE=$(curl -s --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/torrents/info" \
+            | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | .state')
+          echo "pause 后 state=$STATE"
+          [[ "$STATE" == paused* ]] || { echo "::error::暂停未生效 (state=$STATE)"; exit 1; }
+          curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$HASH" "$BASE/api/v2/torrents/resume" > /dev/null
+
+          echo "=== 4) 删除 ==="
+          curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$HASH&deleteFiles=false" \
+            "$BASE/api/v2/torrents/delete" > /dev/null
+          sleep 2
+          LEFT=$(curl -s --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/torrents/info" \
+            | jq -r --arg h "$HASH" 'map(select(.hash==$h)) | length')
+          [ "$LEFT" = "0" ] || { echo "::error::删除后种子仍在列表里"; exit 1; }
+
+          echo "=== 5) 进程与 logcat 复检 (添加种子后是否崩) ==="
+          PID_AFTER=$(adb shell pidof -s "$PKG" | tr -d '\r')
+          echo "pid after: $PID_AFTER"
+          [ "$PID_BEFORE" = "$PID_AFTER" ] || { echo "::error::种子操作过程中进程被重启 ($PID_BEFORE -> $PID_AFTER)"; exit 1; }
+          adb shell logcat -d > logcat-torrent.txt
+          if awk -v p="$PID_AFTER" '$3==p' logcat-torrent.txt \
+               | grep -E "JNI DETECTED|Fatal signal|SIGABRT|Abort message|FATAL EXCEPTION"; then
+            echo "::error::种子操作后 logcat 出现本进程致命错误 (见上方)"; exit 1
+          fi
+          echo "OK: 添加/暂停/恢复/删除 往返通过"
+
       - name: Collect logs on failure
         if: failure() && steps.build.outputs.has_apk == 'true'
         run: |
           adb shell "logcat -d" > logcat.txt || true
-          adb shell "cat /data/data/com.qbittorrent.android/files/*.txt" >> logcat.txt || true
+          adb shell "cat /data/data/${{ matrix.pkg }}/files/*.txt" >> logcat.txt || true
           tail -300 logcat.txt
 
       - name: Upload failure logs
