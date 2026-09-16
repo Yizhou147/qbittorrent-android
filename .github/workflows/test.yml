@@ -303,10 +303,15 @@ jobs:
             echo "::error::Service 被系统按崩溃重启过"
             exit 1
           fi
-          # 已知问题 (README「已知问题」第 5 条): 插件未加载 -> TLS 后端不可用。先只提示, 修好后升级成断言
+          # Qt 插件必须已加载 (JNI 桥接里设置 QT_PLUGIN_PATH + 注入 CA 证书, 见 android_jni_bridge.cpp)。
+          # 出现这句话说明 libplugins_tls_* 没被加载, 那么所有走 Qt 网络栈的 https 都会失败
+          # (按 URL 添加种子、RSS、GeoIP 下载等), 所以这里当硬错误处理。
           if grep -q "No functional TLS backend was found" logcat-smoke.txt; then
-            echo "::warning::出现 'No functional TLS backend was found' (已知: 未设置 QT_PLUGIN_PATH, 插件未加载)"
+            echo "::error::Qt 没有可用的 TLS 后端 —— tls 插件没有被加载"
+            grep -m3 "No functional TLS backend was found" logcat-smoke.txt
+            exit 1
           fi
+          echo "OK: Qt TLS 后端已加载"
           echo "OK: 无崩溃标记, 进程未重启"
 
       - name: Smoke - buildInfo / preferences / VueTorrent 断言
@@ -449,7 +454,19 @@ jobs:
             "$BASE/api/v2/torrents/add")
           check_not_crash "损坏文件" "$CODE" /tmp/garbage.out
 
-          echo "=== 4) 进程与 logcat 复检 ==="
+          echo "=== 4) 优雅失败要落到 qb 日志里 (而不是被静默吞掉) ==="
+          LOGS=$(curl -s --max-time 15 "${HOSTH[@]}" \
+            "$BASE/api/v2/log/main?normal=true&info=true&warning=true&critical=true")
+          for needle in "not-a-real.torrent" "not_a_valid_hash"; do
+            if echo "$LOGS" | grep -q "$needle"; then
+              echo "  qb 日志里有 $needle 的添加失败记录"
+            else
+              echo "::error::qb 日志里找不到 $needle 的失败记录 (可能被静默吞掉)"
+              exit 1
+            fi
+          done
+
+          echo "=== 5) 进程与 logcat 复检 ==="
           sleep 5
           PID_AFTER=$(adb shell pidof -s "$PKG" | tr -d '\r')
           echo "pid after: $PID_AFTER"
