@@ -334,17 +334,20 @@ jobs:
           [[ "$BI_QT" == *"$EXPECT_QT"* ]] || { echo "::error::Qt 版本不符: 期望含 $EXPECT_QT, 实际 '$BI_QT'"; exit 1; }
           [[ "$BI_LT" == *"$EXPECT_LT"* ]] || { echo "::error::libtorrent 版本不符: 期望含 $EXPECT_LT, 实际 '$BI_LT'"; exit 1; }
 
-          echo "=== preferences: Java 层启动时写入的配置 ==="
-          CODE=$(fetch "$BASE/api/v2/app/preferences" /tmp/prefs.json "${HOSTH[@]}")
-          echo "preferences HTTP $CODE"
-          [ "$CODE" = "200" ] || { echo "::error::preferences 返回 HTTP $CODE (403 通常是认证问题)"; exit 1; }
-          jq -r '"web_ui_port=\(.web_ui_port) alternative_webui_enabled=\(.alternative_webui_enabled) save_path=\(.save_path)"' /tmp/prefs.json
-          [ "$(jq -r '.web_ui_port' /tmp/prefs.json)" = "8080" ] \
-            || { echo "::error::web_ui_port 不是 8080"; exit 1; }
-          [ "$(jq -r '.alternative_webui_enabled' /tmp/prefs.json)" = "true" ] \
-            || { echo "::error::alternative_webui_enabled 未开启"; exit 1; }
-          SAVE_PATH=$(jq -r '.save_path // empty' /tmp/prefs.json)
-          [ -n "$SAVE_PATH" ] || { echo "::error::save_path 为空"; exit 1; }
+          # 注意: 这里不查 /api/v2/app/preferences —— 该接口在处理浮点配置时会执行
+          # `fcvtzs` (double->int), 而 x86_64 模拟器的 ndk_translation 没有实现这条指令,
+          # 会让 app 直接 SIGILL。这是模拟器缺陷, 真机正常。
+          # 端口与 alt-UI 改用不触发该路径的方式校验:
+          #   - 端口: qb 启动日志里的监听地址 (数字, 与语言无关)
+          #   - alt-UI: 根路径返回 VueTorrent (下面已校验)
+          #   - 下载路径: 在"种子往返"步骤里断言 torrent 的 save_path
+          echo "=== qb 监听端口 (来自 qb 日志) ==="
+          LOGS=$(curl -s --max-time 20 "${HOSTH[@]}" \
+            "$BASE/api/v2/log/main?normal=true&info=true&warning=true&critical=true" || true)
+          echo "$LOGS" | grep -o "0\.0\.0\.0:8080" | head -1
+          echo "$LOGS" | grep -q "0\.0\.0\.0:8080" \
+            || { echo "::error::qb 没有按 Java 层设置的端口 8080 监听"; exit 1; }
+          SAVE_PATH="(见种子往返步骤)"
 
           echo "=== 根路径应返回 VueTorrent 页面 (验证 zip 解压 + alt UI 生效) ==="
           CODE=$(fetch "$BASE/" /tmp/index.html "${HOSTH[@]}")
@@ -391,6 +394,12 @@ jobs:
             echo "::error::种子未出现在 /torrents/info"; echo "$INFO" | head -c 400; exit 1
           fi
           echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | "name=\(.name) state=\(.state) size=\(.size) progress=\(.progress)"'
+          # Java 层通过 API 设置的下载路径要生效 (prefs 接口在模拟器上不可用, 改从 torrent 上看)
+          TOR_SAVE=$(echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | .save_path')
+          echo "torrent save_path=$TOR_SAVE"
+          [ -n "$TOR_SAVE" ] && [ "$TOR_SAVE" != "null" ] \
+            || { echo "::error::torrent 的 save_path 为空 (Java 层设置的下载路径没生效)"; exit 1; }
+          case "$TOR_SAVE" in *Download*) ;; *) echo "::error::save_path 不是 Java 设置的下载目录: $TOR_SAVE"; exit 1;; esac
 
           echo "=== 3) 暂停 / 恢复 ==="
           curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$HASH" "$BASE/api/v2/torrents/pause" > /dev/null
