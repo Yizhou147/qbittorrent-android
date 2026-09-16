@@ -116,7 +116,8 @@ jobs:
         run: |
           cd apk-project
           chmod +x gradlew
-          ./gradlew testReleaseUnitTest --stacktrace
+          # 加了 productFlavors 后 testReleaseUnitTest 有歧义, 用 test 跑全部变体的 JVM 单测
+          ./gradlew test --stacktrace
 
       - name: Upload test reports on failure
         if: failure()
