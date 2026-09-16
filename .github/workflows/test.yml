@@ -318,13 +318,15 @@ jobs:
         if: steps.build.outputs.has_apk == 'true'
         run: |
           BASE=http://localhost:18080
+          PKG="${{ matrix.pkg }}"
           # qb 会校验 Host 头; 部分请求还要同源 Referer/Origin
           HOSTH=(-H "Host: localhost:8080" -H "Referer: http://localhost:8080")
           EXPECT_QT="${{ matrix.qt }}"
           EXPECT_LT="${{ matrix.libtorrent }}"
+          . ci/smoke-lib.sh
 
           echo "=== buildInfo: 变体的 Qt / libtorrent 版本必须与矩阵一致 ==="
-          CODE=$(curl -s -o /tmp/bi.json -w '%{http_code}' --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/app/buildInfo")
+          CODE=$(fetch "$BASE/api/v2/app/buildInfo" /tmp/bi.json "${HOSTH[@]}")
           echo "buildInfo HTTP $CODE"; cat /tmp/bi.json; echo
           [ "$CODE" = "200" ] || { echo "::error::buildInfo 返回 HTTP $CODE (403 通常是认证问题)"; exit 1; }
           BI_QT=$(jq -r '.qt // empty' /tmp/bi.json)
@@ -333,7 +335,7 @@ jobs:
           [[ "$BI_LT" == *"$EXPECT_LT"* ]] || { echo "::error::libtorrent 版本不符: 期望含 $EXPECT_LT, 实际 '$BI_LT'"; exit 1; }
 
           echo "=== preferences: Java 层启动时写入的配置 ==="
-          CODE=$(curl -s -o /tmp/prefs.json -w '%{http_code}' --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/app/preferences")
+          CODE=$(fetch "$BASE/api/v2/app/preferences" /tmp/prefs.json "${HOSTH[@]}")
           echo "preferences HTTP $CODE"
           [ "$CODE" = "200" ] || { echo "::error::preferences 返回 HTTP $CODE (403 通常是认证问题)"; exit 1; }
           jq -r '"web_ui_port=\(.web_ui_port) alternative_webui_enabled=\(.alternative_webui_enabled) save_path=\(.save_path)"' /tmp/prefs.json
@@ -345,7 +347,7 @@ jobs:
           [ -n "$SAVE_PATH" ] || { echo "::error::save_path 为空"; exit 1; }
 
           echo "=== 根路径应返回 VueTorrent 页面 (验证 zip 解压 + alt UI 生效) ==="
-          CODE=$(curl -s -o /tmp/index.html -w '%{http_code}' --max-time 15 "${HOSTH[@]}" "$BASE/")
+          CODE=$(fetch "$BASE/" /tmp/index.html "${HOSTH[@]}")
           echo "GET / HTTP $CODE"
           [ "$CODE" = "200" ] || { echo "::error::GET / 返回 HTTP $CODE"; exit 1; }
           grep -qi "vuetorrent" /tmp/index.html \
@@ -360,6 +362,7 @@ jobs:
           BASE=http://localhost:18080
           HOSTH=(-H "Host: localhost:8080" -H "Referer: http://localhost:8080")
           PKG="${{ matrix.pkg }}"
+          . ci/smoke-lib.sh
           PID_BEFORE=$(adb shell pidof -s "$PKG" | tr -d '\r')
           echo "pid before: $PID_BEFORE"
 
@@ -426,6 +429,7 @@ jobs:
           BASE=http://localhost:18080
           HOSTH=(-H "Host: localhost:8080" -H "Referer: http://localhost:8080")
           PKG="${{ matrix.pkg }}"
+          . ci/smoke-lib.sh
           PID_BEFORE=$(adb shell pidof -s "$PKG" | tr -d '\r')
           echo "pid before: $PID_BEFORE"
 
