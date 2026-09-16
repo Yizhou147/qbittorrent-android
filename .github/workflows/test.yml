@@ -239,6 +239,8 @@ jobs:
           # 预授权存储权限, 避免 MainActivity 启动时被系统对话框/设置页打断
           adb shell pm grant ${{ matrix.pkg }} android.permission.WRITE_EXTERNAL_STORAGE || true
           adb shell pm grant ${{ matrix.pkg }} android.permission.READ_EXTERNAL_STORAGE || true
+          # targetSdk 34 下 WRITE_EXTERNAL_STORAGE 无效, 下载目录 /sdcard 需要这个 appop
+          adb shell appops set ${{ matrix.pkg }} MANAGE_EXTERNAL_STORAGE allow || true
           adb forward tcp:18080 tcp:8080
           adb shell am start -W -n ${{ matrix.pkg }}/com.qbittorrent.android.MainActivity
           # 应用初始化需要 10-120 秒 (模拟器上 ARM 翻译更慢)
@@ -425,6 +427,79 @@ jobs:
             echo "::error::种子操作后 logcat 出现本进程致命错误 (见上方)"; exit 1
           fi
           echo "OK: 添加/暂停/恢复/删除 往返通过"
+
+      - name: Smoke - 真实下载端到端 (离线 web seed, 校验文件内容)
+        if: steps.build.outputs.has_apk == 'true'
+        run: |
+          # 完全离线: 宿主机起一个 http 服务, 生成的种子用 url-list (BEP 19 web seed)
+          # 指向 http://10.0.2.2:<port> (模拟器眼里宿主机的 loopback), qb 自己就能下完,
+          # 不需要外网也不需要 peer。下载完成后把设备上的文件取回来核对 SHA1。
+          BASE=http://localhost:18080
+          HOSTH=(-H "Host: localhost:8080" -H "Referer: http://localhost:8080")
+          PKG="${{ matrix.pkg }}"
+          . ci/smoke-lib.sh
+          WEBSEED_PORT=8899
+          SRV_DIR=/tmp/webseed
+          mkdir -p "$SRV_DIR"
+
+          # 生成 256KB 的测试内容 + 指向它的种子
+          HASH=$(python3 ci/make-test-torrent.py "$SRV_DIR/payload.torrent" 262144 \
+                   "http://10.0.2.2:${WEBSEED_PORT}/payload.bin")
+          cp "$SRV_DIR/payload.torrent.content" "$SRV_DIR/payload.bin"
+          SRC_SHA=$(sha1sum "$SRV_DIR/payload.bin" | awk '{print $1}')
+          echo "info-hash=$HASH 源文件 sha1=$SRC_SHA"
+          (cd "$SRV_DIR" && nohup python3 -m http.server "$WEBSEED_PORT" --bind 0.0.0.0 > /tmp/webseed.log 2>&1 &)
+          sleep 2
+          curl -sf -o /dev/null "http://127.0.0.1:${WEBSEED_PORT}/payload.bin" \
+            || { echo "::error::宿主 http 服务没起来"; exit 1; }
+
+          PID_BEFORE=$(adb shell pidof -s "$PKG" | tr -d '\r')
+          echo "pid before: $PID_BEFORE"
+          SAVE_PATH=""
+
+          echo "=== 添加种子 (multipart 上传, 带 web seed) ==="
+          CODE=$(curl -s -o /tmp/dl-add.out -w '%{http_code}' --max-time 30 "${HOSTH[@]}" \
+            -F "torrents=@${SRV_DIR}/payload.torrent;type=application/x-bittorrent" \
+            "$BASE/api/v2/torrents/add")
+          echo "torrents/add HTTP $CODE -> $(head -c 120 /tmp/dl-add.out)"
+          [ "$CODE" = "200" ] || { echo "::error::添加种子失败 HTTP $CODE"; exit 1; }
+
+          echo "=== 等下载完成 (最多 4 分钟) ==="
+          DONE=0
+          for i in $(seq 1 48); do
+            INFO=$(curl -s --max-time 15 "${HOSTH[@]}" "$BASE/api/v2/torrents/info" || true)
+            P=$(echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | .progress' 2>/dev/null | head -1)
+            ST=$(echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | .state' 2>/dev/null | head -1)
+            SAVE_PATH=$(echo "$INFO" | jq -r --arg h "$HASH" '.[] | select(.hash==$h) | .save_path' 2>/dev/null | head -1)
+            echo "  第 $i 次: state=$ST progress=$P"
+            if [ "$P" = "1" ]; then DONE=1; break; fi
+            sleep 5
+          done
+          if [ "$DONE" != "1" ]; then
+            echo "::error::4 分钟内没下载完成 (state=$ST progress=$P)"
+            echo "$INFO" | head -c 400
+            cat /tmp/webseed.log | tail -20
+            adb shell logcat -d 2>/dev/null | grep -iE "torrent|web seed|url-list|error" | tail -20
+            exit 1
+          fi
+          echo "下载完成: state=$ST save_path=$SAVE_PATH"
+
+          echo "=== 校验设备上的文件内容 ==="
+          REMOTE_FILE="${SAVE_PATH}/qbittorrent-android-smoke.bin"
+          DEV_SHA=$(adb exec-out "cat '${REMOTE_FILE}'" 2>/dev/null | sha1sum | awk '{print $1}')
+          echo "设备文件 sha1=$DEV_SHA"
+          [ -n "$DEV_SHA" ] && [ "$DEV_SHA" != "da39a3ee5e6b4b0d3255bfef95601890afd80709" ] \
+            || { echo "::error::读不到设备上的下载文件: $REMOTE_FILE"; adb shell "ls -l '${SAVE_PATH}'" 2>&1 | head -10; exit 1; }
+          [ "$DEV_SHA" = "$SRC_SHA" ] \
+            || { echo "::error::下载文件内容与源文件不一致 (设备 $DEV_SHA vs 源 $SRC_SHA)"; exit 1; }
+          echo "OK: 离线 web seed 下载完成且内容一致"
+
+          echo "=== 清理 ==="
+          curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$HASH&deleteFiles=true" \
+            "$BASE/api/v2/torrents/delete" > /dev/null || true
+          pkill -f "http.server ${WEBSEED_PORT}" 2>/dev/null || true
+          PID_AFTER=$(adb shell pidof -s "$PKG" | tr -d '\r')
+          [ "$PID_BEFORE" = "$PID_AFTER" ] || { echo "::error::下载过程中进程被重启"; exit 1; }
 
       - name: Smoke - 非法输入只报错不崩溃 (URL/畸形磁力/损坏文件)
         if: steps.build.outputs.has_apk == 'true'
