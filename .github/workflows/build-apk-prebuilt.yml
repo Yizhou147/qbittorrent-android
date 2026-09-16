@@ -44,6 +44,10 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # 该 action 默认装 'tools platform-tools', 但 Google 已下线 'tools' 包,
+          # 会以 "Failed to find package 'tools'" + 退出码 1 失败, 故显式指定存在的包
+          packages: 'platform-tools'
 
       - name: Build APK
         run: |
