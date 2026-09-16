@@ -364,7 +364,7 @@ qbittorrent-android/
 │   └── qt6/arm64-v8a/            # libQt6Core/Network/Sql/Xml + tls/sqldrivers 插件 + libssl/libcrypto
 ├── scripts/
 │   ├── prepare-sources.sh        # 本地构建: 下载源码并打补丁
-│   └── ...                       # 历史构建/调试脚本
+│   └── legacy/                   # v1.1 时期的构建/调试脚本 (已归档, 不再使用)
 ├── docker-sources/               # 构建前准备的第三方源码/工具链 zip（脚本生成，不入库）
 ├── apk-project/                  # Android 项目
 │   ├── app/
