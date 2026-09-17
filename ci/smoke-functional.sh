@@ -55,15 +55,22 @@ torrent_state() {
 }
 
 set_torrent_state() {  # set_torrent_state <hash> stop|start
-    local h="$1" action="$2" st i
-    curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$h" "${BASE}/api/v2/torrents/${action}" > /dev/null
-    for i in 1 2 3 4 5 6; do
-        sleep 1
-        st=$(torrent_state "$h")
-        case "$action" in
-            stop)  case "$st" in stopped*|paused*) echo "$st"; return 0;; esac ;;
-            start) case "$st" in stopped*|paused*) ;; *) echo "$st"; return 0;; esac ;;
-        esac
+    local h="$1" action="$2" alt st i attempt
+    case "$action" in
+        stop)  alt="pause" ;;
+        start) alt="resume" ;;
+    esac
+    # 先试新名字(stop/start, qb 4.6+ / 5.x), 状态没变再试旧名字(pause/resume, qb 4.3.x)
+    for attempt in "$action" "$alt"; do
+        curl -s --max-time 15 "${HOSTH[@]}" -d "hashes=$h" "${BASE}/api/v2/torrents/${attempt}" > /dev/null
+        for i in 1 2 3 4 5 6; do
+            sleep 1
+            st=$(torrent_state "$h")
+            case "$attempt" in
+                stop|pause)   case "$st" in stopped*|paused*) echo "$st"; return 0;; esac ;;
+                start|resume) case "$st" in stopped*|paused*) ;; *) echo "$st"; return 0;; esac ;;
+            esac
+        done
     done
     echo "$st"
     return 1
