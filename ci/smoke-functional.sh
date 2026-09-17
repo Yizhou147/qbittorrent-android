@@ -169,6 +169,47 @@ adb reverse --remove "tcp:${WEBSEED_PORT}" > /dev/null 2>&1
 check_alive || exit 1
 
 echo
+echo "=== 3) WebUI 页面 + 非法输入回归 (这三类输入曾让 5.2.3 直接 SIGABRT) ==="
+CODE=$(curl -s -o /tmp/sf-index.html -w '%{http_code}' --max-time 20 "${HOSTH[@]}" "${BASE}/")
+echo "  根路径 HTTP $CODE"
+[ "$CODE" = "200" ] && ok "根路径可访问" || fail "根路径 HTTP $CODE"
+if grep -qi "vuetorrent" /tmp/sf-index.html; then
+    ok "根路径返回 VueTorrent 页面 (alt-UI 生效)"
+else
+    fail "根路径不是 VueTorrent 页面"
+fi
+
+for spec in "URL|urls=https://example.com/not-a-real.torrent|not-a-real.torrent" \
+            "畸形磁力|urls=magnet:?xt=urn:btih:not_a_valid_hash|not_a_valid_hash"; do
+    label=${spec%%|*}; rest=${spec#*|}; body=${rest%%|*}; needle=${rest##*|}
+    CODE=$(curl -s -o "/tmp/sf-${label}.out" -w '%{http_code}' --max-time 20 "${HOSTH[@]}" \
+        --data-urlencode "$body" "${BASE}/api/v2/torrents/add")
+    echo "  非法$label -> HTTP $CODE"
+    if [ "$CODE" != "000" ] && [ "$CODE" != "200" ]; then
+        ok "非法$label 只报错不崩溃"
+    else
+        fail "非法$label 返回了意外的 $CODE"
+    fi
+    LOGS=$(curl -s --max-time 20 "${HOSTH[@]}" \
+        "${BASE}/api/v2/log/main?normal=true&info=true&warning=true&critical=true" || true)
+    if echo "$LOGS" | grep -q "$needle"; then
+        ok "qb 日志里有该失败的记录"
+    else
+        fail "qb 日志里找不到 $needle (可能被静默吞掉)"
+    fi
+done
+
+head -c 2000 /dev/urandom > /tmp/sf-garbage.torrent
+CODE=$(curl -s -o /tmp/sf-garbage.out -w '%{http_code}' --max-time 20 "${HOSTH[@]}" \
+    -F "torrents=@/tmp/sf-garbage.torrent;type=application/x-bittorrent" \
+    "${BASE}/api/v2/torrents/add")
+echo "  损坏文件 -> HTTP $CODE"
+[ "$CODE" != "000" ] && ok "损坏文件只报错不崩溃 (HTTP $CODE)" || fail "损坏文件请求无响应"
+
+adb forward --remove "tcp:${FWD}" > /dev/null 2>&1
+check_alive || exit 1
+
+echo
 if [ "$FAILED" = "0" ]; then
     echo "全部通过: 种子往返 + 离线真实下载"
 else
