@@ -59,6 +59,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY docker-sources/openssl-3.3.2.tar.gz /tmp/
 COPY docker-sources/${BOOST_TARBALL} /tmp/
 COPY docker-sources/libtorrent /build/libtorrent-src
+COPY ci/patch-libtorrent.py /tmp/
 COPY docker-sources/qbittorrent /build/qbittorrent-src
 
 # ===== 安装 Android SDK =====
@@ -144,6 +145,12 @@ RUN tar xzf /tmp/${BOOST_TARBALL} && \
         cxxflags="-std=c++17 --target=aarch64-linux-android24" \
         linkflags="--target=aarch64-linux-android24 -llog" \
         -j$(nproc) --abbreviate-paths -d1
+
+# ===== 给 libtorrent 打补丁: 显式加载应用复制出来的 CA 证书 =====
+# (Android 上 OpenSSL 的默认 CA 路径不存在, tracker 的 https 通告会因验证失败而连不上)
+RUN python3 /tmp/patch-libtorrent.py /build/libtorrent-src && \
+    grep -q 'qbittorrent-android: explicit CA loading' /build/libtorrent-src/src/session_impl.cpp \
+      && echo 'OK: libtorrent CA 补丁已应用' || echo 'WARN: 该 libtorrent 版本未应用 CA 补丁'
 
 # ===== 编译 libtorrent (API 35 target, 见文件头说明) =====
 RUN export API=35 && \
