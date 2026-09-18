@@ -15,39 +15,55 @@
     （由本项目的 JNI 桥接设置，指向 app 复制出来的 CA bundle 与哈希名目录），则显式
     把它们加载进验证存储。
 
+兼容性（本地已对各版本源码验证锚点唯一命中）:
+    - 2.0.x（v2.0.10 / v2.0.14）: 锚点为 "#if TORRENT_USE_SSL" 分支
+    - 1.2.x（v1.2.20，qBittorrent 4.3.9 用）: 锚点为 "#ifdef TORRENT_USE_OPENSSL" 分支，
+      且 set_verify_mode 在 set_default_verify_paths 之前、后跟日志块
+
 用法: patch-libtorrent.py <libtorrent 源码目录>
 """
 import sys
 
 MARKER = "qbittorrent-android: explicit CA loading"
 
-ANCHOR = """#if TORRENT_USE_SSL
-		error_code ec;
-		m_ssl_ctx.set_default_verify_paths(ec);
+# libtorrent >= 2.0
+ANCHOR_20 = """#if TORRENT_USE_SSL
+\t\terror_code ec;
+\t\tm_ssl_ctx.set_default_verify_paths(ec);
 """
 
-PATCH = """#if TORRENT_USE_SSL
-		error_code ec;
-		m_ssl_ctx.set_default_verify_paths(ec);
-		// qbittorrent-android: explicit CA loading
-		// 桌面发行版的默认路径在 Android 上不存在, 应用通过环境变量指向自己复制的
-		// CA bundle/目录; 这里显式加载, 保证验证存储非空。
-		if (const char* caFile = std::getenv("SSL_CERT_FILE"))
-		{
-			error_code caEc;
-			m_ssl_ctx.load_verify_file(caFile, caEc);
+# libtorrent 1.2.x
+ANCHOR_12 = """#ifdef TORRENT_USE_OPENSSL
+\t\terror_code ec;
+\t\tm_ssl_ctx.set_verify_mode(boost::asio::ssl::context::verify_none, ec);
+\t\tm_ssl_ctx.set_default_verify_paths(ec);
 #ifndef TORRENT_DISABLE_LOGGING
-			if (caEc) session_log("SSL load_verify_file(%s) failed: %s", caFile, caEc.message().c_str());
+\t\tif (ec) session_log("SSL set_default verify_paths failed: %s", ec.message().c_str());
+\t\tec.clear();
 #endif
-		}
-		if (const char* caDir = std::getenv("SSL_CERT_DIR"))
-		{
-			error_code caEc;
-			m_ssl_ctx.add_verify_path(caDir, caEc);
+"""
+
+
+def ca_loading_code():
+    return """\t\t// qbittorrent-android: explicit CA loading
+\t\t// 桌面发行版的默认路径在 Android 上不存在, 应用通过环境变量指向自己复制的
+\t\t// CA bundle/目录; 这里显式加载, 保证验证存储非空。
+\t\tif (const char* caFile = std::getenv("SSL_CERT_FILE"))
+\t\t{
+\t\t\terror_code caEc;
+\t\t\tm_ssl_ctx.load_verify_file(caFile, caEc);
 #ifndef TORRENT_DISABLE_LOGGING
-			if (caEc) session_log("SSL add_verify_path(%s) failed: %s", caDir, caEc.message().c_str());
+\t\t\tif (caEc) session_log("SSL load_verify_file(%s) failed: %s", caFile, caEc.message().c_str());
 #endif
-		}
+\t\t}
+\t\tif (const char* caDir = std::getenv("SSL_CERT_DIR"))
+\t\t{
+\t\t\terror_code caEc;
+\t\t\tm_ssl_ctx.add_verify_path(caDir, caEc);
+#ifndef TORRENT_DISABLE_LOGGING
+\t\t\tif (caEc) session_log("SSL add_verify_path(%s) failed: %s", caDir, caEc.message().c_str());
+#endif
+\t\t}
 """
 
 
@@ -65,18 +81,22 @@ def main():
         print("libtorrent 已经打过这个补丁, 跳过")
         return 0
 
-    if content.count(ANCHOR) != 1:
-        # libtorrent 1.2.x 的 session_impl.cpp 结构不同; 这里只告警, 不中断构建,
-        # 由工作流日志里能看到是否真的打上了 (补丁标记检查)。
+    for name, anchor in (("2.0.x", ANCHOR_20), ("1.2.x", ANCHOR_12)):
+        if content.count(anchor) == 1:
+            content = content.replace(anchor, anchor + ca_loading_code(), 1)
+            break
+    else:
         print("警告: 未找到 set_default_verify_paths 锚点, 本版本未打补丁 (源码版本不匹配?)")
         return 0
-    content = content.replace(ANCHOR, PATCH, 1)
 
     # 确保 <cstdlib> 可用 (std::getenv)
     if "#include <cstdlib>" not in content:
-        inc_anchor = "#include <cstdint>"
-        if inc_anchor in content:
-            content = content.replace(inc_anchor, "#include <cstdint>\n#include <cstdlib>", 1)
+        for inc_anchor in ("#include <cstdint>",
+                           "#include <cstdio> // for snprintf",
+                           "#include <cstdio>"):
+            if inc_anchor in content:
+                content = content.replace(inc_anchor, inc_anchor + "\n#include <cstdlib>", 1)
+                break
         else:
             content = "#include <cstdlib>\n" + content
 

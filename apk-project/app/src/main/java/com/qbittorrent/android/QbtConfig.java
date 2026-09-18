@@ -36,7 +36,8 @@ final class QbtConfig {
         return "[BitTorrent]\n" +
                 "Session\\Port=" + SESSION_PORT + "\n" +
                 "Session\\QueueingSystemEnabled=false\n" +
-                "Session\\ValidateHTTPSTrackerCertificate=false\n\n" +
+                // 证书校验默认开启: JNI 桥接 + libtorrent 补丁会显式加载应用复制的 CA
+                "Session\\ValidateHTTPSTrackerCertificate=true\n\n" +
                 "[Meta]\n" +
                 "MigrationVersion=6\n\n" +
                 "[Preferences]\n" +
