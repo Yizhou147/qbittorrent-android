@@ -13,9 +13,6 @@
 #include <cstdlib>
 #include <climits>
 #include <cstdio>
-#include <ctime>
-#include <dirent.h>
-#include <dlfcn.h>
 #include <sys/stat.h>
 #include <sys/system_properties.h>
 #include <sys/types.h>
@@ -65,109 +62,6 @@ static void disableOpenSslAccelerationOnEmulator() {
         return;
     // 0 = 关闭全部运行时检测到的能力 (OpenSSL 支持用环境变量覆盖)
     setenv("OPENSSL_armcap", "0", 1);
-}
-
-// ===== dev: HTTPS tracker 证书校验问题的自检 =====
-// 背景: tracker 走 libtorrent 自己的静态 OpenSSL, 它仍然验证不过 https tracker
-// (打开 ValidateHTTPSTrackerCertificate 就报 asio.ssl error, 关掉就能问到服务器)。
-// 这里把关键事实写到 /sdcard 上, 用 adb 就能读, 并且用 dlopen 调 libcrypto 直接
-// 验证那个 CA bundle 到底能不能被加载。
-static void writeCaSelfCheck(const char *profileDir, const char *cacertsDir,
-                             const char *caBundlePath) {
-    FILE *out = fopen("/storage/emulated/0/Download/qbt-ca-selfcheck.txt", "w");
-    if (!out)
-        out = stderr;
-
-    time_t now = time(nullptr);
-    fprintf(out, "=== qBittorrent CA self-check (%ld) ===\n", static_cast<long>(now));
-
-    const char *envDir = getenv("SSL_CERT_DIR");
-    const char *envFile = getenv("SSL_CERT_FILE");
-    fprintf(out, "profileDir      = %s\n", profileDir ? profileDir : "(null)");
-    fprintf(out, "SSL_CERT_DIR    = %s\n", envDir ? envDir : "(unset)");
-    fprintf(out, "SSL_CERT_FILE   = %s\n", envFile ? envFile : "(unset)");
-    fprintf(out, "getenv(OPENSSL_CONF)= %s\n", getenv("OPENSSL_CONF") ? getenv("OPENSSL_CONF") : "(unset)");
-
-    // 目录里有多少个文件 (OpenSSL 的 CA 目录要求哈希文件名, 这里顺便看看名字样式)
-    int dirCount = 0;
-    if (DIR *d = opendir(cacertsDir)) {
-        struct dirent *e = nullptr;
-        char first[256] = {0};
-        while ((e = readdir(d)) != nullptr) {
-            if (e->d_name[0] == '.')
-                continue;
-            if (first[0] == 0)
-                snprintf(first, sizeof(first), "%s", e->d_name);
-            ++dirCount;
-        }
-        closedir(d);
-        fprintf(out, "cacerts dir     = %s (%d 个文件, 首个: %s)\n", cacertsDir, dirCount, first);
-    } else {
-        fprintf(out, "cacerts dir     = %s (打不开!)\n", cacertsDir);
-    }
-
-    // bundle: 大小 + PEM 张数
-    long bundleSize = -1;
-    int pemCount = 0;
-    if (FILE *f = fopen(caBundlePath, "rb")) {
-        fseek(f, 0, SEEK_END);
-        bundleSize = ftell(f);
-        fseek(f, 0, SEEK_SET);
-        char buf[4096];
-        size_t n = 0;
-        const char needle[] = "BEGIN CERTIFICATE";
-        size_t matched = 0;
-        while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
-            for (size_t i = 0; i < n; ++i) {
-                if (buf[i] == needle[matched]) {
-                    if (++matched == sizeof(needle) - 1) {
-                        ++pemCount;
-                        matched = 0;
-                    }
-                } else {
-                    matched = (buf[i] == needle[0]) ? 1 : 0;
-                }
-            }
-        }
-        fclose(f);
-        fprintf(out, "ca bundle       = %s (%ld 字节, 含 %d 张证书)\n", caBundlePath, bundleSize, pemCount);
-    } else {
-        fprintf(out, "ca bundle       = %s (打不开!)\n", caBundlePath);
-    }
-
-    // 直接问 libcrypto: 这个 bundle 它认不认
-    void *lib = dlopen("libcrypto.so", RTLD_NOW);
-    if (!lib)
-        lib = dlopen("libcrypto.so.3", RTLD_NOW);
-    if (lib) {
-        typedef void *(*store_new_t)(void);
-        typedef int (*store_load_file_t)(void *, const char *);
-        typedef int (*store_load_loc_t)(void *, const char *, const char *);
-        typedef void (*store_free_t)(void *);
-        auto store_new = reinterpret_cast<store_new_t>(dlsym(lib, "X509_STORE_new"));
-        auto store_load_file = reinterpret_cast<store_load_file_t>(dlsym(lib, "X509_STORE_load_file"));
-        auto store_load_loc = reinterpret_cast<store_load_loc_t>(dlsym(lib, "X509_STORE_load_locations"));
-        auto store_free = reinterpret_cast<store_free_t>(dlsym(lib, "X509_STORE_free"));
-        if (store_new && store_free && (store_load_file || store_load_loc)) {
-            void *store = store_new();
-            int ok = 0;
-            if (store_load_file)
-                ok = store_load_file(store, caBundlePath);
-            else
-                ok = store_load_loc(store, caBundlePath, nullptr);
-            fprintf(out, "libcrypto 加载 bundle: %s (via %s)\n", ok == 1 ? "成功" : "失败",
-                    store_load_file ? "X509_STORE_load_file" : "X509_STORE_load_locations");
-            store_free(store);
-        } else {
-            fprintf(out, "libcrypto 符号缺失\n");
-        }
-    } else {
-        fprintf(out, "dlopen libcrypto.so 失败: %s\n", dlerror() ? dlerror() : "?");
-    }
-
-    fprintf(out, "=== 结束 ===\n");
-    if (out != stderr)
-        fclose(out);
 }
 
 // 把 Java 侧已经复制好的 CA 证书灌给 Qt。
@@ -268,7 +162,6 @@ Java_com_qbittorrent_android_QBittorrentService_nativeMain(
     setupQtPluginPath();
     if (caBundlePath[0])
         setupQtCaCertificates(caBundlePath);
-    writeCaSelfCheck(profileDir, cacertsPath, caBundlePath);
 
     // Call qBittorrent's main()
     int result = main(argc, argv);
