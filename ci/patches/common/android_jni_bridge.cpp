@@ -13,6 +13,7 @@
 #include <cstdlib>
 #include <climits>
 #include <cstdio>
+#include <ctime>
 #include <dirent.h>
 #include <dlfcn.h>
 #include <sys/stat.h>
@@ -140,19 +141,25 @@ static void writeCaSelfCheck(const char *profileDir, const char *cacertsDir,
         lib = dlopen("libcrypto.so.3", RTLD_NOW);
     if (lib) {
         typedef void *(*store_new_t)(void);
-        typedef int (*store_load_file_t)(void *, const char *, int);
+        typedef int (*store_load_file_t)(void *, const char *);
+        typedef int (*store_load_loc_t)(void *, const char *, const char *);
         typedef void (*store_free_t)(void *);
         auto store_new = reinterpret_cast<store_new_t>(dlsym(lib, "X509_STORE_new"));
         auto store_load_file = reinterpret_cast<store_load_file_t>(dlsym(lib, "X509_STORE_load_file"));
+        auto store_load_loc = reinterpret_cast<store_load_loc_t>(dlsym(lib, "X509_STORE_load_locations"));
         auto store_free = reinterpret_cast<store_free_t>(dlsym(lib, "X509_STORE_free"));
-        if (store_new && store_load_file && store_free) {
+        if (store_new && store_free && (store_load_file || store_load_loc)) {
             void *store = store_new();
-            const int ok = store_load_file(store, caBundlePath, 1 /*X509_FILETYPE_PEM*/);
-            fprintf(out, "libcrypto 加载 bundle: %s\n", ok == 1 ? "成功" : "失败");
+            int ok = 0;
+            if (store_load_file)
+                ok = store_load_file(store, caBundlePath);
+            else
+                ok = store_load_loc(store, caBundlePath, nullptr);
+            fprintf(out, "libcrypto 加载 bundle: %s (via %s)\n", ok == 1 ? "成功" : "失败",
+                    store_load_file ? "X509_STORE_load_file" : "X509_STORE_load_locations");
             store_free(store);
         } else {
-            fprintf(out, "libcrypto 符号缺失 (store_new=%p load_file=%p)\n",
-                    reinterpret_cast<void *>(store_new), reinterpret_cast<void *>(store_load_file));
+            fprintf(out, "libcrypto 符号缺失\n");
         }
     } else {
         fprintf(out, "dlopen libcrypto.so 失败: %s\n", dlerror() ? dlerror() : "?");
