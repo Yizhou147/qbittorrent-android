@@ -12,7 +12,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <climits>
-#include <dlfcn.h>
+#include <cstdio>
 #include <sys/stat.h>
 #include <sys/system_properties.h>
 #include <sys/types.h>
