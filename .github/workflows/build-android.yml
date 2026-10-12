@@ -13,6 +13,7 @@ on:
           - '4.3.9'
           - '4.6.7'
           - '5.2.3'
+          - '5.2.4'
   push:
     tags:
       - 'v*'
@@ -33,7 +34,7 @@ jobs:
         run: |
           requested="${{ inputs.qb_version }}"
           if [ -z "$requested" ] || [ "$requested" = "all" ]; then
-            echo 'matrix={"version":["4.3.9","4.6.7","5.2.3"]}' >> "$GITHUB_OUTPUT"
+            echo 'matrix={"version":["4.3.9","4.6.7","5.2.3","5.2.4"]}' >> "$GITHUB_OUTPUT"
           else
             echo "matrix={\"version\":[\"$requested\"]}" >> "$GITHUB_OUTPUT"
           fi
@@ -49,7 +50,7 @@ jobs:
     env:
       # 每个变体的构建参数: qbittorrent / libtorrent / Qt / C++ 标准 / 额外 cmake 参数 / VueTorrent 版本
       # 4.3.9 需要 libtorrent 1.2.x 和 VueTorrent v0.13.0 (v1.0+ 要求 qb >= 4.4)
-      # 5.2.3 需要 Qt6 >= 6.6 和 C++20
+      # 5.2.3 / 5.2.4 需要 Qt6 >= 6.6 和 C++20
       QT5_VERSION: 5.15.2
       QT6_VERSION: 6.6.3
     steps:
@@ -103,6 +104,18 @@ jobs:
               echo "extra_lt_flags="              >> $GITHUB_OUTPUT
               echo "flavor=v523"                  >> $GITHUB_OUTPUT
               echo "app_id=com.qbittorrent.android.qb523" >> $GITHUB_OUTPUT
+              ;;
+            5.2.4)
+              echo "qbt_ref=release-5.2.4"        >> $GITHUB_OUTPUT
+              echo "lt_ref=v2.0.14"               >> $GITHUB_OUTPUT
+              echo "qt_kind=qt6"                  >> $GITHUB_OUTPUT
+              echo "qt_version=$QT6_VERSION"      >> $GITHUB_OUTPUT
+              echo "cxx_standard=20"              >> $GITHUB_OUTPUT
+              # rcc zstd 问题由 ci/patches/5.2.4/040-rcc-no-zstd.patch 处理
+              echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
+              echo "extra_lt_flags="              >> $GITHUB_OUTPUT
+              echo "flavor=v524"                  >> $GITHUB_OUTPUT
+              echo "app_id=com.qbittorrent.android.qb524" >> $GITHUB_OUTPUT
               ;;
             *)
               echo "Unknown version: ${{ matrix.version }}" >&2

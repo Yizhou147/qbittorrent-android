@@ -11,17 +11,18 @@
   <img src="screenshot.jpg" width="100%" alt="qBittorrent Android Screenshot">
 </p>
 
-将 [qBittorrent](https://www.qbittorrent.org/) 移植到 Android 平台，通过 WebView 访问 WebUI 进行操作。
+将 [qBittorrent](https://github.com/qbittorrent/qBittorrent) 移植到 Android 平台，通过 WebView 访问 WebUI 进行操作。
 
-**支持三个 qBittorrent 版本**（CI 矩阵构建，任选）：
+**支持四个 qBittorrent 版本**（CI 矩阵构建，任选）：
 
 | qBittorrent | libtorrent | Qt | C++ 标准 |
 |---|---|---|---|
 | 4.3.9 | 1.2.20 | 5.15.2 | 17 |
 | 4.6.7 | 2.0.10 | 5.15.2 | 17 |
 | 5.2.3 | 2.0.14 | 6.6.3 | 20 |
+| 5.2.4 | 2.0.14 | 6.6.3 | 20 |
 
-三个变体的内置 WebUI 统一为 **VueTorrent 2.34.0 中文默认版**
+四个变体的内置 WebUI 统一为 **VueTorrent 2.34.0 中文默认版**
 （`apk-project/app/src/main/assets/vuetorrent.zip`，来自
 [Yizhou147/VueTorrent](https://github.com/Yizhou147/VueTorrent)），不按版本切换。
 
@@ -44,7 +45,7 @@
 ### 核心组件
 
 1. **Qt 运行时库**（源码重编，产物入库复用）
-   - 4.3.9 / 4.6.7 使用 Qt 5.15.2 Android 版；5.2.3 使用 Qt 6.6.3（qb 5.x 要求 Qt ≥ 6.6，交叉编译需 QT_HOST_PATH）
+   - 4.3.9 / 4.6.7 使用 Qt 5.15.2 Android 版；5.2.3 / 5.2.4 使用 Qt 6.6.3（qb 5.x 要求 Qt ≥ 6.6，交叉编译需 QT_HOST_PATH）
    - 运行库由 `build-qt.yml` + `Dockerfile.qt` 从源码编译 qtbase（只编 Core/Network/Sql/Xml + tls/sqldrivers 插件），
      产物提交在 `third-party/qt5|qt6/arm64-v8a/`，主构建直接拷进 jniLibs，**不再重编 Qt**
    - 必须源码重编的原因见「关键技术问题 5」：预编译 Qt 的 `JNI_OnLoad` 依赖 Activity 上下文
@@ -52,7 +53,7 @@
      （moc/rcc/uic）来编 libqbt，运行期用的是 `third-party/` 里那份
 
 2. **libtorrent**
-   - qb 4.3.9 → libtorrent 1.2.20；qb 4.6.7 → 2.0.10；qb 5.2.3 → 2.0.14
+   - qb 4.3.9 → libtorrent 1.2.20；qb 4.6.7 → 2.0.10；qb 5.2.3 / 5.2.4 → 2.0.14
    - 必须用 `git clone --recursive` 获取源码（release tarball 缺 try_signal 子模块）
    - 交叉编译目标 `arm64-v8a`，动态链接 `libc++_shared.so`
 
@@ -139,7 +140,7 @@
 #### 7. 旧版 qb 与新工具链的兼容
 
 - **qb 4.3.9**：新 clang 将 narrowing 聚合初始化视为错误，libtorrent 1.2.20 编译参数追加 `-Wno-error=c++11-narrowing*`；`execinfo.h` 在 Android 不可用，关闭 STACKTRACE
-- **qb 5.2.3**：使用 boost::stacktrace（未编译该模块），关闭 STACKTRACE
+- **qb 5.2.3 / 5.2.4**：使用 boost::stacktrace（未编译该模块），关闭 STACKTRACE
 
 #### 8. qb 5.2.3 添加种子直接闪退（Boost 异常跨 DSO 未捕获）
 
@@ -163,7 +164,7 @@ qb 5.2.3 的 `TorrentDescriptor` 五个入口（`parse` / `load` / `loadFromFile
 根本不抛异常，也就用不到这些 catch；只有 qb 5.x 新引入的 `TorrentDescriptor` 用的是**抛异常**的
 封装（`lt::parse_magnet_uri(string)` / `lt::load_torrent_buffer(...)`），才踩到我们这种静态 Boost
 构建下「跨 DSO 异常类型身份不一致」的坑。所以同一个 URL 在 4.3.9/4.6.7 正常、在 5.2.3 崩；
-这个补丁只加在 5.2.3 上。
+这个补丁只加在 5.2.3 / 5.2.4 上。
 
 **解决方案**：`ci/patches/5.2.3/050-torrentdescriptor-catchall.patch` 给这五处各补
 `catch (const std::exception &)` + `catch (...)`。`catch (...)` 不依赖类型匹配，是绕开
@@ -186,11 +187,11 @@ CI 侧由 `test.yml` 的「非法输入只报错不崩溃」步骤做回归。
 ### 方式一：GitHub Actions 自动构建（推荐，唯一支持的 CI 方式）
 
 1. 打开仓库 Actions 页面，选择 `Build qBittorrent Android APK`
-2. 点击 `Run workflow`，选择要构建的 qBittorrent 版本（`all` = 三个版本并行）
-3. 等待构建完成（单变体实测约 15 分钟；`all` 三个变体矩阵并行，整体时间取决于 runner 排队与并发）
+2. 点击 `Run workflow`，选择要构建的 qBittorrent 版本（`all` = 四个版本并行）
+3. 等待构建完成（单变体实测约 15 分钟；`all` 四个变体矩阵并行，整体时间取决于 runner 排队与并发）
 4. 在 Artifacts 页面下载对应 APK（`qbittorrent-android-qb<版本>`）
 
-推送 `v*` tag 会自动构建全部三个版本。
+推送 `v*` tag 会自动构建全部四个版本。
 
 > Qt 运行时库由单独的 `Build Qt runtime libs` 工作流编译（实测 qt6 约 7 分钟），产物提交在
 > `third-party/`。**只有改动 Qt 补丁（`ci/build-qt*.sh`）时才需要重跑它**；日常改 qb 补丁、
@@ -200,7 +201,7 @@ CI 侧由 `test.yml` 的「非法输入只报错不崩溃」步骤做回归。
 
 `test.yml` 工作流（与构建分开运行）：
 
-1. **patch-check**：对 4.3.9 / 4.6.7 / 5.2.3 的官方源码试打移植补丁，断言关键标记
+1. **patch-check**：对 4.3.9 / 4.6.7 / 5.2.3 / 5.2.4 的官方源码试打移植补丁，断言关键标记
    （共享库化、JNI 桥接、翻译可选化、rcc `--no-zstd`），防止升级版本时补丁失效
 2. **unit-tests**：JVM 单元测试（`./gradlew testReleaseUnitTest`），覆盖
    `QbtConfig` 的配置写入/改写/端口校验逻辑
@@ -254,7 +255,7 @@ release 包使用固定密钥签名；否则每次 CI 构建的 debug key 都不
 
 ```bash
 # 下载源码 + 应用移植补丁（同时会下载 OpenSSL/Boost）
-./scripts/prepare-sources.sh 5.2.3        # 或 4.3.9 / 4.6.7
+./scripts/prepare-sources.sh 5.2.3        # 或 4.3.9 / 4.6.7 / 5.2.4
 ```
 
 SDK/NDK 的三个 zip（platform-34 / build-tools 34 / NDK r27b）如未提前放入 `docker-sources/`，
@@ -263,7 +264,7 @@ SDK/NDK 的三个 zip（platform-34 / build-tools 34 / NDK r27b）如未提前�
 #### 一键构建
 
 ```bash
-# qb 5.2.3 (Qt6)
+# qb 5.2.3 / 5.2.4 (Qt6)
 docker build -t qbittorrent-android \
   --build-arg QT_KIND=qt6 --build-arg QT_VERSION=6.6.3 \
   --build-arg CXX_STANDARD=20 --build-arg EXTRA_CMAKE_FLAGS=-DSTACKTRACE=OFF .
@@ -441,7 +442,7 @@ qbittorrent-android/
 
 ## 致谢
 
-- [qBittorrent](https://www.qbittorrent.org/) - 原始 BitTorrent 客户端
+- [qBittorrent](https://github.com/qbittorrent/qBittorrent) - 原始 BitTorrent 客户端
 - [Qt](https://www.qt.io/) - 跨平台应用框架
 - [libtorrent](https://www.libtorrent.org/) - BitTorrent 库
 - [OpenSSL](https://www.openssl.org/) - 加密库
