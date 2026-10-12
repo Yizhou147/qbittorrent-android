@@ -33,7 +33,7 @@
                 android:id="@+id/tvVersion"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="v1.1"
+                android:text="v"
                 android:textSize="12sp"
                 android:textColor="#999999" />
         </LinearLayout>

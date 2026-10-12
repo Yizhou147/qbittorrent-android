@@ -46,6 +46,7 @@ public class SettingsActivity extends AppCompatActivity {
 
         try {
             String ver = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            ((TextView) findViewById(R.id.tvVersion)).setText("v" + ver);
             ((TextView) findViewById(R.id.tvAppVersion)).setText("版本 " + ver);
         } catch (android.content.pm.PackageManager.NameNotFoundException ignored) {
         }
