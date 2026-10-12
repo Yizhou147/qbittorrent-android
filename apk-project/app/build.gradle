@@ -35,7 +35,7 @@ android {
         }
     }
 
-    // 三个 qBittorrent 变体共存: applicationId 后缀不同 -> 可同时安装, 数据目录彼此独立。
+    // 多个 qBittorrent 变体共存: applicationId 后缀不同 -> 可同时安装, 数据目录彼此独立。
     // namespace 仍是 com.qbittorrent.android, Java 包名不变; JNI 里 FindClass 用的类名
     // 与 applicationId 无关, 所以改后缀不影响原生层。
     flavorDimensions 'qb'
@@ -51,6 +51,10 @@ android {
         v523 {
             dimension 'qb'
             applicationIdSuffix '.qb523'
+        }
+        v524 {
+            dimension 'qb'
+            applicationIdSuffix '.qb524'
         }
     }
 

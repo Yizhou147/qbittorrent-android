@@ -1,0 +1,106 @@
+--- a/src/base/bittorrent/torrentdescriptor.cpp
++++ b/src/base/bittorrent/torrentdescriptor.cpp
+@@ -28,6 +28,8 @@
+ 
+ #include "torrentdescriptor.h"
+ 
++#include <exception>
++
+ #include <libtorrent/load_torrent.hpp>
+ #include <libtorrent/magnet_uri.hpp>
+ #include <libtorrent/torrent_info.hpp>
+@@ -98,6 +100,18 @@
+ {
+     return nonstd::make_unexpected(QString::fromLocal8Bit(err.what()));
+ }
++// Android: libtorrent 抛出的 boost/system 异常在跨 DSO (libtorrent-rasterbar.so ->
++// libqbt.so) 时可能匹配不上上面这个 catch (异常类型身份不一致), 逃出 noexcept 函数
++// 会被 std::terminate 直接 abort (表现为"添加种子即闪退")。catch (...) 不依赖类型匹配,
++// 因此这里再兜一层, 保证任何异常都退化成"返回错误信息"而不是崩溃。
++catch (const std::exception &err)
++{
++    return nonstd::make_unexpected(QString::fromLocal8Bit(err.what()));
++}
++catch (...)
++{
++    return nonstd::make_unexpected(u"Unknown error"_s);
++}
+ 
+ nonstd::expected<BitTorrent::TorrentDescriptor, QString>
+ BitTorrent::TorrentDescriptor::loadFromFile(const Path &path) noexcept
+@@ -108,6 +122,18 @@
+ catch (const lt::system_error &err)
+ {
+     return nonstd::make_unexpected(QString::fromLocal8Bit(err.what()));
++}
++// Android: libtorrent 抛出的 boost/system 异常在跨 DSO (libtorrent-rasterbar.so ->
++// libqbt.so) 时可能匹配不上上面这个 catch (异常类型身份不一致), 逃出 noexcept 函数
++// 会被 std::terminate 直接 abort (表现为"添加种子即闪退")。catch (...) 不依赖类型匹配,
++// 因此这里再兜一层, 保证任何异常都退化成"返回错误信息"而不是崩溃。
++catch (const std::exception &err)
++{
++    return nonstd::make_unexpected(QString::fromLocal8Bit(err.what()));
++}
++catch (...)
++{
++    return nonstd::make_unexpected(u"Unknown error"_s);
+ }
+ 
+ nonstd::expected<BitTorrent::TorrentDescriptor, QString>
+@@ -126,6 +152,18 @@
+ {
+     return nonstd::make_unexpected(QString::fromLocal8Bit(err.what()));
+ }
++// Android: libtorrent 抛出的 boost/system 异常在跨 DSO (libtorrent-rasterbar.so ->
++// libqbt.so) 时可能匹配不上上面这个 catch (异常类型身份不一致), 逃出 noexcept 函数
++// 会被 std::terminate 直接 abort (表现为"添加种子即闪退")。catch (...) 不依赖类型匹配,
++// 因此这里再兜一层, 保证任何异常都退化成"返回错误信息"而不是崩溃。
++catch (const std::exception &err)
++{
++    return nonstd::make_unexpected(QString::fromLocal8Bit(err.what()));
++}
++catch (...)
++{
++    return nonstd::make_unexpected(u"Unknown error"_s);
++}
+ 
+ nonstd::expected<void, QString> BitTorrent::TorrentDescriptor::saveToFile(const Path &path) const
+ try
+@@ -140,6 +178,18 @@
+ catch (const lt::system_error &err)
+ {
+     return nonstd::make_unexpected(QString::fromLocal8Bit(err.what()));
++}
++// Android: libtorrent 抛出的 boost/system 异常在跨 DSO (libtorrent-rasterbar.so ->
++// libqbt.so) 时可能匹配不上上面这个 catch (异常类型身份不一致), 逃出 noexcept 函数
++// 会被 std::terminate 直接 abort (表现为"添加种子即闪退")。catch (...) 不依赖类型匹配,
++// 因此这里再兜一层, 保证任何异常都退化成"返回错误信息"而不是崩溃。
++catch (const std::exception &err)
++{
++    return nonstd::make_unexpected(QString::fromLocal8Bit(err.what()));
++}
++catch (...)
++{
++    return nonstd::make_unexpected(u"Unknown error"_s);
+ }
+ 
+ nonstd::expected<QByteArray, QString> BitTorrent::TorrentDescriptor::saveToBuffer() const
+@@ -157,6 +207,18 @@
+ {
+     return nonstd::make_unexpected(QString::fromLocal8Bit(err.what()));
+ }
++// Android: libtorrent 抛出的 boost/system 异常在跨 DSO (libtorrent-rasterbar.so ->
++// libqbt.so) 时可能匹配不上上面这个 catch (异常类型身份不一致), 逃出 noexcept 函数
++// 会被 std::terminate 直接 abort (表现为"添加种子即闪退")。catch (...) 不依赖类型匹配,
++// 因此这里再兜一层, 保证任何异常都退化成"返回错误信息"而不是崩溃。
++catch (const std::exception &err)
++{
++    return nonstd::make_unexpected(QString::fromLocal8Bit(err.what()));
++}
++catch (...)
++{
++    return nonstd::make_unexpected(u"Unknown error"_s);
++}
+ 
+ BitTorrent::TorrentDescriptor::TorrentDescriptor(lt::add_torrent_params ltAddTorrentParams)
+     : m_ltAddTorrentParams {std::move(ltAddTorrentParams)}
