@@ -11,6 +11,7 @@
 #include <jni.h>
 #include <cstring>
 #include <cstdlib>
+#include <dlfcn.h>
 #include <climits>
 #include <cstdio>
 #include <sys/stat.h>
