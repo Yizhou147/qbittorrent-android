@@ -300,21 +300,22 @@ APK 输出：`apk-project/app/build/outputs/apk/release/app-release.apk`（已�
 
 ## 使用说明
 
-### 三个变体共存
+### 多变体共存
 
-三个变体的 applicationId 不同，可以同时安装、互不影响：
+各变体的 applicationId 不同，可以同时安装、互不影响：
 
 | 变体 | 包名 | 桌面名称 |
 |---|---|---|
 | qb 4.3.9 | `com.qbittorrent.android.qb439` | qBittorrent 4.3.9 |
 | qb 4.6.7 | `com.qbittorrent.android.qb467` | qBittorrent 4.6.7 |
 | qb 5.2.3 | `com.qbittorrent.android.qb523` | qBittorrent 5.2.3 |
+| qb 5.2.4 | `com.qbittorrent.android.qb524` | qBittorrent 5.2.4 |
 
 注意：
 
-- 包名与 v1.2 之前不同（当时是 `com.qbittorrent.android`），**首次需要卸载重装**；
-  之后的新版本都能直接覆盖安装（从 v1.2 起 release 包用固定密钥签名，见「构建指南 → 签名」）。
-- 三个变体的 WebUI 默认端口都是 8080，**建议同时只运行一个**；要同时使用，请在各自设置里
+- 包名与 v1.2.0 之前不同（当时是 `com.qbittorrent.android`），**首次需要卸载重装**；
+  之后的新版本都能直接覆盖安装（从 v1.2.0 起 release 包用固定密钥签名，见「构建指南 → 签名」）。
+- 各变体的 WebUI 默认端口都是 8080，**建议同时只运行一个**；要同时使用，请在各自设置里
   改成不同端口。
 - 默认下载目录都是 `/storage/emulated/0/Download/qBittorrent`，同时使用时也建议分别设置。
 
@@ -377,7 +378,7 @@ qbittorrent-android/
 │   │   └── build.gradle
 │   └── build.gradle
 └── .github/workflows/
-    ├── build-android.yml         # 主构建: 矩阵构建三个版本的 APK
+    ├── build-android.yml         # 主构建: 矩阵构建四个版本的 APK
     ├── build-qt.yml              # Qt 运行时库（产物提交进 third-party/）
     ├── build-apk-prebuilt.yml    # 零编译出包: 复用仓库 jniLibs 里的原生库
     └── test.yml                  # patch-check / unit-tests / emulator-smoke
@@ -403,11 +404,19 @@ qbittorrent-android/
      哈希、OpenSSL 按 SHA1 查找永远命不中。构建时用 `ci/patch-libtorrent.py` 给
      libtorrent 打补丁，session 启动时显式 `load_verify_file()` 加载同一份 CA bundle；
      `ValidateHTTPSTrackerCertificate` 默认 **true**（真机已验证三变体的 https tracker
-     通告正常）。v1.2 及更早的包默认关闭校验，覆盖安装后需在 WebUI 手动打开。
+     通告正常）。v1.2.0 及更早的包默认关闭校验，覆盖安装后需在 WebUI 手动打开。
 
 ## 版本历史
 
-### v1.2 (2026-09-13)
+### v1.2.1 (2026-10-12)
+
+- 新增 qBittorrent **5.2.4** 变体（libtorrent 2.0.14 / Qt 6.6.3 / C++20），补丁集复用 5.2.3 并验证干净打上
+- **https tracker 证书校验修复**（`ci/patch-libtorrent.py` 显式注入系统 CA bundle，详见「已知问题 5」）：
+  新装默认开启；从 v1.2.0 及更早覆盖安装的用户配置里存有 `false`，需在 WebUI 手动打开
+- JNI 桥接显式包含 `<dlfcn.h>`（5.2.4 头文件链不再传递包含）
+- 本 release 仅含 5.2.4 变体 APK；真机 `ci/smoke-functional.sh` 全量通过
+
+### v1.2.0 (2026-09-13)
 
 - 支持 qBittorrent 4.3.9 / 4.6.7 / 5.2.3 三版本矩阵构建
 - **修复 qb 5.2.3（Qt6）打开 WebUI 时闪退**：`JNI_OnLoad` 缓存 app ClassLoader +
@@ -422,7 +431,7 @@ qbittorrent-android/
 - Java 层动态加载 Qt5/Qt6 库；清理死代码；改用 nativeLibraryDir 标准 API
 - CI 源码改从官方 release 下载 + 统一补丁集，移除 Git LFS 源码包
 
-### v1.1 (2026-07-08)
+### v1.1.0 (2026-07-08)
 
 - 新增设置页面：WebUI 切换、端口设置、下载路径设置
 - 新增 VueTorrent WebUI 支持（默认中文）
@@ -433,7 +442,7 @@ qbittorrent-android/
 - 优化启动流程：端口轮询 + 加载提示
 - 移除日志功能
 
-### v1.0 (2026-07-05)
+### v1.0.0 (2026-07-05)
 
 - 初始发布
 - qBittorrent 4.6.7 移植到 Android
