@@ -44,6 +44,12 @@ public class SettingsActivity extends AppCompatActivity {
         etDownloadPath = findViewById(R.id.etDownloadPath);
         btnSavePath = findViewById(R.id.btnSavePath);
 
+        try {
+            String ver = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            ((TextView) findViewById(R.id.tvAppVersion)).setText("版本 " + ver);
+        } catch (android.content.pm.PackageManager.NameNotFoundException ignored) {
+        }
+
         updateCurrentUI();
         loadPort();
         loadDownloadPath();
