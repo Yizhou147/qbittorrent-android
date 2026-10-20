@@ -14,9 +14,7 @@ ENV ANDROID_NDK=${ANDROID_HOME}/ndk/27.0.12077973
 ENV PREFIX=/opt/qbt-output
 ENV TOOLCHAIN=${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64
 
-RUN (sed -i 's|http://archive.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/sources.list && \
-     sed -i 's|http://security.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/sources.list) || \
-    (sed -i 's|http://mirrors.ustc.edu.cn|http://archive.ubuntu.com|g' /etc/apt/sources.list; true)
+# apt 使用 Ubuntu 官方源：CI runner 直连很快，写死国内镜像反而会因 DNS 故障中断构建。
 
 # qt6 构建需要 JDK 17; qt5 的 jar 步骤用 javac -source 7, 需要 JDK 8
 RUN apt-get update && apt-get install -y --no-install-recommends \

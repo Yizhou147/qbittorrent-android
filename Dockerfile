@@ -37,10 +37,7 @@ ENV AR=${TOOLCHAIN}/bin/llvm-ar
 ENV RANLIB=${TOOLCHAIN}/bin/llvm-ranlib
 ENV STRIP=${TOOLCHAIN}/bin/llvm-strip
 
-# ===== 配置 apt 镜像源 (回退机制) =====
-RUN (sed -i 's|http://archive.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/sources.list && \
-     sed -i 's|http://security.ubuntu.com|http://mirrors.ustc.edu.cn|g' /etc/apt/sources.list) || \
-    (sed -i 's|http://mirrors.ustc.edu.cn|http://archive.ubuntu.com|g' /etc/apt/sources.list; true)
+# apt 使用 Ubuntu 官方源：CI runner 直连很快，写死国内镜像反而会因 DNS 故障中断构建。
 
 # ===== 安装基础工具 =====
 # lrelease (host) pre-compiles .ts translations because the Android Qt packages
