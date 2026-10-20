@@ -2,7 +2,7 @@
 # 准备本地 Docker 构建所需的源码目录 (从官方 GitHub release 下载并打补丁)
 #
 # 用法: ./scripts/prepare-sources.sh <qbittorrent版本> [libtorrent版本]
-#   版本示例: 4.3.9 | 4.6.7 | 5.2.3 | 5.2.4
+#   版本示例: 4.3.9 | 4.6.7 | 5.2.3 | 5.2.4 | 5.3.0
 #
 # 之后执行:
 #   docker build -t qbittorrent-android \
@@ -17,7 +17,8 @@ case "$QBT_VER" in
     4.6.7) LT_VER="${2:-v2.0.10}";;
     5.2.3) LT_VER="${2:-v2.0.14}";;
     5.2.4) LT_VER="${2:-v2.0.14}";;
-    *) echo "未支持的版本: $QBT_VER (支持: 4.3.9 / 4.6.7 / 5.2.3 / 5.2.4)" >&2; exit 1;;
+    5.3.0) LT_VER="${2:-v2.0.14}";;
+    *) echo "未支持的版本: $QBT_VER (支持: 4.3.9 / 4.6.7 / 5.2.3 / 5.2.4 / 5.3.0)" >&2; exit 1;;
 esac
 
 cd "$ROOT"
@@ -54,7 +55,7 @@ done
 
 echo "=== 源码准备完成, 构建命令示例 ==="
 case "$QBT_VER" in
-    5.2.3|5.2.4)
+    5.2.3|5.2.4|5.3.0)
         echo "docker build -t qbittorrent-android \\"
         echo "  --build-arg QT_KIND=qt6 --build-arg QT_VERSION=6.6.3 \\"
         echo "  --build-arg CXX_STANDARD=20 --build-arg EXTRA_CMAKE_FLAGS=-DSTACKTRACE=OFF ."
