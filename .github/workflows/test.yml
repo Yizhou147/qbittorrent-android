@@ -48,6 +48,8 @@ jobs:
             qbt_ref: release-4.6.7
           - version: '5.2.3'
             qbt_ref: release-5.2.3
+          - version: '5.3.0'
+            qbt_ref: release-5.3.0
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -80,10 +82,10 @@ jobs:
           grep -q "if (TARGET Qt::lupdate)" src/app/CMakeLists.txt
           echo "=== 翻译 qrc 预编译分支 ==="
           grep -q "webui_translations.qrc" src/app/CMakeLists.txt
-          if [ "${{ matrix.version }}" = "5.2.3" ]; then
-            echo "=== 5.2.3: rcc 禁用 zstd ==="
+          if [ "${{ matrix.version }}" = "5.2.3" ] || [ "${{ matrix.version }}" = "5.3.0" ]; then
+            echo "=== ${{ matrix.version }}: rcc 禁用 zstd ==="
             grep -q -- "--no-zstd" cmake/Modules/CommonConfig.cmake
-            echo "=== 5.2.3: TorrentDescriptor 异常兜底 (防添加种子/损坏文件闪退) ==="
+            echo "=== ${{ matrix.version }}: TorrentDescriptor 异常兜底 (防添加种子/损坏文件闪退) ==="
             # 只统计行首的 catch (注释里也提到 catch (...), 不能用裸 grep -c)
             test "$(grep -c '^catch (const std::exception &err)' src/base/bittorrent/torrentdescriptor.cpp)" = "5"
             test "$(grep -c '^catch (\.\.\.)' src/base/bittorrent/torrentdescriptor.cpp)" = "5"
@@ -136,8 +138,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 三个变体全覆盖: 4.3.9 (Qt5 + libtorrent 1.2) / 4.6.7 (Qt5 长期基线) /
-        # 5.2.3 (Qt6 运行时)。qt/libtorrent 用于冒烟测试里断言 buildInfo。
+        # 覆盖长期基线与最新版本: 4.3.9 (Qt5 + libtorrent 1.2) / 4.6.7 (Qt5 长期基线) /
+        # 5.2.3 / 5.3.0 (Qt6 运行时)。qt/libtorrent 用于冒烟测试里断言 buildInfo。
         include:
           - version: '4.3.9'
             qt: '5.15.2'
@@ -151,6 +153,10 @@ jobs:
             qt: '6.6.3'
             libtorrent: '2.0.14'
             pkg: 'com.qbittorrent.android.qb523'
+          - version: '5.3.0'
+            qt: '6.6.3'
+            libtorrent: '2.0.14'
+            pkg: 'com.qbittorrent.android.qb530'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # 模拟器上的 ARM 指令翻译较慢且环境不可控, 暂不作为阻塞门禁

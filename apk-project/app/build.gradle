@@ -56,6 +56,10 @@ android {
             dimension 'qb'
             applicationIdSuffix '.qb524'
         }
+        v530 {
+            dimension 'qb'
+            applicationIdSuffix '.qb530'
+        }
     }
 
     signingConfigs {
