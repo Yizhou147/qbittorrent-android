@@ -23,6 +23,8 @@
 | 5.2.4 | 2.0.14 | 6.6.3 | 20 |
 | 5.3.0 | 2.0.14 | 6.6.3 | 20 |
 
+当前 release **v1.2.2** 提供 4.3.9 / 4.6.7 / 5.3.0 三个变体；5.2.3 / 5.2.4 继续使用 v1.2.1 的包。
+
 五个变体的内置 WebUI 统一为 **VueTorrent 2.34.0 中文默认版**
 （`apk-project/app/src/main/assets/vuetorrent.zip`，来自
 [Yizhou147/VueTorrent](https://github.com/Yizhou147/VueTorrent)），不按版本切换。
@@ -319,7 +321,7 @@ APK 输出：`apk-project/app/build/outputs/apk/release/app-release.apk`（已�
   之后的新版本都能直接覆盖安装（从 v1.2.0 起 release 包用固定密钥签名，见「构建指南 → 签名」）。
 - 各变体的 WebUI 默认端口都是 8080，**建议同时只运行一个**；要同时使用，请在各自设置里
   改成不同端口。
-- 默认下载目录都是 `/storage/emulated/0/Download/qBittorrent`，同时使用时也建议分别设置。
+- 默认下载目录都是系统 Download 目录（`/storage/emulated/0/Download`），同时使用时也建议分别设置。
 
 ### 首次启动
 
@@ -407,8 +409,8 @@ qbittorrent-android/
      依赖编译期 OPENSSLDIR（设备上不存在），且 Android 的 CA 目录文件名是旧式 MD5
      哈希、OpenSSL 按 SHA1 查找永远命不中。构建时用 `ci/patch-libtorrent.py` 给
      libtorrent 打补丁，session 启动时显式 `load_verify_file()` 加载同一份 CA bundle；
-     `ValidateHTTPSTrackerCertificate` 默认 **true**（真机已验证三变体的 https tracker
-     通告正常）。v1.2.0 及更早的包默认关闭校验，覆盖安装后需在 WebUI 手动打开。
+     `ValidateHTTPSTrackerCertificate` 默认 **true**（真机已验证 4.3.9 / 4.6.7 / 5.2.3
+     等变体的 https tracker 通告正常）。v1.2.0 及更早的包默认关闭校验，覆盖安装后需在 WebUI 手动打开。
 
 ## 版本历史
 
@@ -418,8 +420,9 @@ qbittorrent-android/
   源码重做并本地验证干净打上（`torrentdescriptor.cpp` 上游结构有变化，050 补丁重新生成）
 - 5.3.0 真机 `ci/smoke-functional.sh` 全部通过：种子往返、离线 web seed 真实下载（SHA1 一致）、
   非法 URL / 畸形磁力 / 损坏种子只报错不崩溃
-- 设置页版本号与右上角角标改为运行时读取；从本版起显示 `1.2.2`（v1.2.1 包内仍显示旧文本）
-- 本 release 仅含 5.3.0 变体 APK
+- 设置页版本号与右上角角标改为运行时读取；本版起显示 `1.2.2`（v1.2.1 包内设置页为 `1.2.1`，角标仍为 `v1.1`）
+- 4.3.9 / 4.6.7 同步重新构建，应用内版本号显示 `1.2.2`
+- 本 release 包含 4.3.9 / 4.6.7 / 5.3.0 三个变体 APK；5.2.3 / 5.2.4 继续使用 v1.2.1 的包
 
 ### v1.2.1 (2026-10-12)
 
@@ -427,7 +430,7 @@ qbittorrent-android/
 - **https tracker 证书校验修复**（`ci/patch-libtorrent.py` 显式注入系统 CA bundle，详见「已知问题 5」）：
   新装默认开启；从 v1.2.0 及更早覆盖安装的用户配置里存有 `false`，需在 WebUI 手动打开
 - JNI 桥接显式包含 `<dlfcn.h>`（5.2.4 头文件链不再传递包含）
-- 本 release 仅含 5.2.4 变体 APK；真机 `ci/smoke-functional.sh` 全量通过
+- 本 release 包含 4.3.9 / 4.6.7 / 5.2.3 / 5.2.4 四个变体 APK；真机 `ci/smoke-functional.sh` 全量通过
 
 ### v1.2.0 (2026-09-13)
 
