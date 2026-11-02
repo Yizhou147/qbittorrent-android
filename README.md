@@ -25,6 +25,18 @@
 
 当前 release **v1.2.2** 提供 4.3.9 / 4.6.7 / 5.3.0 三个变体；5.2.3 / 5.2.4 继续使用 v1.2.1 的包。
 
+### Android 版本要求（重要）
+
+| 包 | 最低 Android | 说明 |
+|---|---|---|
+| 普通包（默认构建） | **Android 11（API 30）** | `libqbt.so` 依赖 API 30 才导出的 `_Unwind_*`；Gradle 里的 `minSdk 24` 是历史遗留，**不代表可运行** |
+| legacy 包（4.3.9 / 5.3.0） | **Android 9（API 28）** | 静态链接 libunwind 的兼容构建，见「关键技术问题 9」 |
+
+- **鸿蒙 2.0（Android 10 / API 29）等老设备请下载 legacy 包**；普通包在这些设备上会一直停在「正在启动」。
+- legacy 包由独立工作流 `Build legacy qBittorrent Android APK (Android 9+)` 构建，不影响普通包的构建与发布。
+- legacy 5.3.0 受 Qt 6.6 限制（官方最低 Android 8.0）；Android 8.x 未做真机验证，因此统一按 API 28 发布。
+- 老设备优先试 **4.3.9 legacy**（Qt5，资源占用更低）。
+
 五个变体的内置 WebUI 统一为 **VueTorrent 2.34.0 中文默认版**
 （`apk-project/app/src/main/assets/vuetorrent.zip`，来自
 [Yizhou147/VueTorrent](https://github.com/Yizhou147/VueTorrent)），不按版本切换。
@@ -185,6 +197,35 @@ qb 5.2.3 的 `TorrentDescriptor` 五个入口（`parse` / `load` / `loadFromFile
 
 CI 侧由 `test.yml` 的「非法输入只报错不崩溃」步骤做回归。
 
+#### 9. 低版本 Android 无法启动（`_Unwind_*` 依赖，legacy 构建）
+
+**现象**：Android 10 及以下（含鸿蒙 2.0，API 29）安装普通包后，界面永远停在
+「正在启动 qBittorrent...」，点重试也无效。
+
+**根因**：`libqbt.so` 里有 3 个 **GLOBAL 未定义**符号 —— `_Unwind_Resume`（异常
+cleanup landing pad）、`_Unwind_Backtrace` / `_Unwind_GetIP`（boost::stacktrace）。
+bionic 的 arm64 `libc.so` 直到 **API 30** 才导出它们（Android 10 的 `libc.map.txt` 里
+只在 `LIBC_PRIVATE` 且仅 arm32，Android 11 才进入 `LIBC_R`）。所有原生库都带
+`DF_BIND_NOW`，`System.loadLibrary("qbt")` 会在加载瞬间解析全部重定位，于是直接
+`UnsatisfiedLinkError: cannot locate symbol "_Unwind_Resume"`。`QBittorrentService`
+把这个错误打进了 logcat，但旧版 `MainActivity` 只监听「就绪」广播，界面上看不到任何原因。
+
+**注意**：`memfd_create` / `getentropy` / `getrandom` 在产物里都是 **weak** 未定义符号
+（缺失时解析为 NULL，不会导致加载失败），不是根因；`minSdk 24` 也因此从来没真实过。
+
+**解决方案**（不影响普通构建）：
+
+- Dockerfile 新增 `LEGACY_UNWIND` 参数（默认 0）。legacy 构建为 1 时，把 NDK 的静态
+  `libunwind.a` 以 `--whole-archive` 方式链进 `libqbt.so`，`_Unwind_*` 变成库内定义；
+- 仍按 `ANDROID_PLATFORM=android-35` 编译，并显式加 `-Wl,-z,max-page-size=16384`，
+  不牺牲 Android 15/16 的对齐要求；
+- `ci/check-native-compat.py` 在出包前校验：`libqbt` 必须自带 unwinder，且所有库不得含
+  API 高于目标 minSdk 的 GLOBAL 未定义符号；
+- legacy 的 Gradle 构建（`-PlegacyBuild`）使用 `minSdk 28`。
+
+**验证**：静态检查（符号表）通过后，需要在 Android 9/10 真机安装并跑
+`ci/smoke-functional.sh`；本仓库现有测试机均为 Android 15+，无法覆盖这一段。
+
 ## 构建指南
 
 ### 方式一：GitHub Actions 自动构建（推荐，唯一支持的 CI 方式）
@@ -195,6 +236,21 @@ CI 侧由 `test.yml` 的「非法输入只报错不崩溃」步骤做回归。
 4. 在 Artifacts 页面下载对应 APK（`qbittorrent-android-qb<版本>`）
 
 推送 `v*` tag 会自动构建全部五个版本。
+
+#### legacy 兼容包（Android 9+，独立工作流）
+
+Actions 页面另有 `Build legacy qBittorrent Android APK (Android 9+)`，**仅手动触发**，只构建
+4.3.9 / 5.3.0 两个变体，产物带 `-legacy` 后缀：
+
+```bash
+gh workflow run build-android-legacy.yml -f qb_version=all
+```
+
+- 原生构建传 `LEGACY_UNWIND=1`（Dockerfile 将 NDK 的静态 `libunwind.a` 链进 `libqbt.so`）；
+- Gradle 传 `-PlegacyBuild`：`minSdk 28`，设置页版本号显示 `1.2.2-legacy`；
+- 构建完成后会跑 `ci/check-native-compat.py`：若 `_Unwind_*` 未定义、或存在 API 高于 28 的
+  GLOBAL 未定义符号，直接失败，不会产出「装得上但起不来」的包；
+- 与普通包使用同一签名与包名，可直接覆盖安装（配置保留）。
 
 > Qt 运行时库由单独的 `Build Qt runtime libs` 工作流编译（实测 qt6 约 7 分钟），产物提交在
 > `third-party/`。**只有改动 Qt 补丁（`ci/build-qt*.sh`）时才需要重跑它**；日常改 qb 补丁、
@@ -360,6 +416,7 @@ qbittorrent-android/
 │   ├── build-qt5.sh              # 源码编译 qtbase 5.15.2 + JNI 补丁
 │   ├── build-qt6.sh              # 源码编译 qtbase 6.6.3 + JNI 补丁
 │   ├── build-native.sh           # libtorrent/libqbt 编译
+│   ├── check-native-compat.py    # legacy 出包门禁: 符号/对齐检查
 │   └── patches/
 │       ├── common/               # JNI 桥接（编入 libqbt.so）
 │       ├── 4.3.9/                # 各版本补丁集
@@ -385,6 +442,7 @@ qbittorrent-android/
 │   └── build.gradle
 └── .github/workflows/
     ├── build-android.yml         # 主构建: 矩阵构建五个版本的 APK
+    ├── build-android-legacy.yml  # legacy 构建: Android 9+ (4.3.9 / 5.3.0)
     ├── build-qt.yml              # Qt 运行时库（产物提交进 third-party/）
     ├── build-apk-prebuilt.yml    # 零编译出包: 复用仓库 jniLibs 里的原生库
     └── test.yml                  # patch-check / unit-tests / emulator-smoke
@@ -394,7 +452,8 @@ qbittorrent-android/
 
 1. **启动较慢**：首次启动需要 10-30 秒初始化
 2. **内存占用**：Qt5 和 libtorrent 较大，建议设备至少 2GB RAM
-3. **Android 版本**：`minSdk 24`（Android 7.0+），仅在较新版本上实测过，低版本未验证
+3. **Android 版本**：普通包实际要求 **Android 11（API 30）**；Android 9/10 请用 legacy 包
+   （`build-android-legacy.yml`，见上文「Android 版本要求」）。Gradle 的 `minSdk 24` 仅为历史遗留。
 4. **架构限制**：仅支持 ARM64 设备
 5. **~~Qt 侧 HTTPS 与 SQLite 插件未加载~~（已修复）**：Qt 默认用编译期 prefix 找插件
    （设备上不存在），Qt 在 Android 上也拿不到系统 CA。修复（`android_jni_bridge.cpp`，

@@ -20,6 +20,11 @@ ARG BOOST_TARBALL=boost_1_86_0.tar.gz
 ARG EXTRA_CMAKE_FLAGS=""
 # libtorrent 编译追加的 C++ flags (如降级 narrowing 错误为警告)
 ARG EXTRA_LT_CXXFLAGS=""
+# legacy 构建: 把 NDK 的静态 libunwind.a 整个链进 libqbt.so。
+# 说明: 目标 API 35 时链接器会用 libc.so 里的 _Unwind_* 桩 (这些符号 API 30 才导出),
+# 导致 libqbt 在 Android 10 及以下 dlopen 失败。静态链入后符号变成库内定义,
+# 而 ANDROID_PLATFORM 仍是 35, 16KB 页/TLS 对齐不受影响。默认 0 = 现有构建行为不变。
+ARG LEGACY_UNWIND=0
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME=/opt/android-sdk
@@ -215,6 +220,11 @@ RUN SRC=/build/qbittorrent-src && \
 RUN export API=35 && \
     export CC=${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang && \
     export CXX=${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang++ && \
+    UNWIND_LDFLAGS="" && \
+    if [ "$LEGACY_UNWIND" = "1" ]; then \
+        UNWIND_LDFLAGS="-Wl,--whole-archive ${TOOLCHAIN}/lib/clang/18/lib/linux/aarch64/libunwind.a -Wl,--no-whole-archive -Wl,--exclude-libs,libunwind.a -Wl,-z,max-page-size=16384"; \
+        echo "legacy: 静态链接 libunwind.a ($UNWIND_LDFLAGS)"; \
+    fi && \
     QT_CMAKE_DIR=$(cat /tmp/qt_cmake_dir) && \
     QT_ROOT=$(dirname $(dirname $(dirname ${QT_CMAKE_DIR}))) && \
     QT_HOST_PATH=$(cat /tmp/qt_host_path) && \
@@ -226,6 +236,7 @@ RUN export API=35 && \
         -DANDROID_ABI=arm64-v8a \
         -DANDROID_PLATFORM=android-${API} \
         -DANDROID_STL=c++_shared \
+        -DCMAKE_SHARED_LINKER_FLAGS="${UNWIND_LDFLAGS}" \
         -DCMAKE_INSTALL_PREFIX=${PREFIX} \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_STANDARD=${CXX_STANDARD} \

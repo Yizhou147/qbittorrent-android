@@ -35,6 +35,21 @@
             android:textSize="16sp"
             android:textColor="#666666" />
 
+        <!-- 启动失败/超时时显示最近的服务端日志，便于用户直接反馈原因 -->
+        <TextView
+            android:id="@+id/tvDetail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:textSize="12sp"
+            android:textColor="#999999"
+            android:typeface="monospace"
+            android:maxLines="10"
+            android:gravity="start"
+            android:visibility="gone" />
+
     </LinearLayout>
 
     <!-- 右下角手动刷新按钮 -->
