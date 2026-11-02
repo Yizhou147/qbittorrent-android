@@ -20,6 +20,10 @@ def envKeystore = System.getenv('QBT_KEYSTORE_FILE')
 def hasEnvSigning = (envKeystore != null) && !envKeystore.trim().isEmpty()
 def hasReleaseSigning = hasSignProps || hasEnvSigning
 
+// legacy 构建 (./gradlew ... -PlegacyBuild): 面向 Android 9 (API 28) 的老设备，
+// 与默认构建的产物/元数据互不影响。原生库由 Docker 的 LEGACY_UNWIND=1 提供。
+def legacyBuild = project.hasProperty('legacyBuild')
+
 android {
     namespace 'com.qbittorrent.android'
     compileSdk 34
@@ -30,6 +34,10 @@ android {
         targetSdk 34
         versionCode 4
         versionName "1.2.2"
+        if (legacyBuild) {
+            // 设置页可区分安装的是 legacy 包
+            versionNameSuffix "-legacy"
+        }
         ndk {
             abiFilters 'arm64-v8a'
         }
@@ -43,6 +51,8 @@ android {
         v439 {
             dimension 'qb'
             applicationIdSuffix '.qb439'
+            // legacy: Qt5 运行时本身支持 API 21，这里按已验证的 Android 9 发布
+            if (legacyBuild) minSdk 28
         }
         v467 {
             dimension 'qb'
@@ -59,6 +69,8 @@ android {
         v530 {
             dimension 'qb'
             applicationIdSuffix '.qb530'
+            // legacy: Qt 6.6 官方最低 Android 8.0 (API 26)；8.x 未经真机验证，按 API 28 发布
+            if (legacyBuild) minSdk 28
         }
     }
 

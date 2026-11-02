@@ -42,11 +42,14 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_PERMISSION = 1001;
     private static final int REQUEST_FILE_CHOOSER = 1002;
-    private static final int POLL_INTERVAL_MS = 1500;
-    private static final int POLL_MAX_RETRIES = 60;
+    // 与服务端 QBittorrentService 的 240 秒就绪窗口保持一致
+    private static final int POLL_INTERVAL_MS = 2000;
+    private static final int POLL_MAX_RETRIES = 120;
+    private static final int LOG_TAIL_LINES = 8;
 
     private WebView webView;
     private TextView tvStatus;
+    private TextView tvDetail;
     private LinearLayout loadingLayout;
     private FloatingActionButton fabRefresh;
     private boolean serviceStarted = false;
@@ -55,6 +58,8 @@ public class MainActivity extends AppCompatActivity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean webUILoaded = false;
     private boolean polling = false;
+    private volatile boolean startupFailed = false;
+    private final java.util.ArrayDeque<String> logTail = new java.util.ArrayDeque<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
 
         webView = findViewById(R.id.webView);
         tvStatus = findViewById(R.id.tvStatus);
+        tvDetail = findViewById(R.id.tvDetail);
         loadingLayout = findViewById(R.id.loadingLayout);
         fabRefresh = findViewById(R.id.fabRefresh);
 
@@ -211,14 +217,20 @@ public class MainActivity extends AppCompatActivity {
     private void startPortPolling() {
         if (polling) return;
         polling = true;
+        startupFailed = false;
+        synchronized (logTail) {
+            logTail.clear();
+        }
         showLoading("正在启动 qBittorrent...");
+        tvDetail.setText("");
+        tvDetail.setVisibility(android.view.View.GONE);
 
         new Thread(() -> {
             SharedPreferences prefs = getSharedPreferences("qbt_prefs", MODE_PRIVATE);
             int port = prefs.getInt("webui_port", 8080);
             boolean ready = false;
 
-            for (int i = 0; i < POLL_MAX_RETRIES; i++) {
+            for (int i = 0; i < POLL_MAX_RETRIES && !startupFailed; i++) {
                 try {
                     Socket s = new Socket("127.0.0.1", port);
                     s.close();
@@ -249,12 +261,66 @@ public class MainActivity extends AppCompatActivity {
                     showLoading("正在加载 WebUI...");
                     webView.clearCache(true);
                     webView.loadUrl(getWebUIUrl());
+                } else if (startupFailed) {
+                    // 具体错误已由服务端日志广播显示，这里只保证重试入口可见
+                    loadingLayout.setVisibility(android.view.View.VISIBLE);
+                    webView.setVisibility(android.view.View.GONE);
+                    fabRefresh.setVisibility(android.view.View.VISIBLE);
                 } else {
-                    tvStatus.setText("qBittorrent 启动超时，点击右下角按钮重试");
+                    int seconds = POLL_MAX_RETRIES * POLL_INTERVAL_MS / 1000;
+                    tvStatus.setText("qBittorrent 启动超时（已等待 " + seconds + " 秒），点击右下角按钮重试");
+                    showLogTail();
                     fabRefresh.setVisibility(android.view.View.VISIBLE);
                 }
             });
         }).start();
+    }
+
+    /** 记录服务端最近的广播，启动失败/超时时展示给用户 */
+    private void rememberLog(String level, String message) {
+        String line = (level == null ? "INFO" : level) + " " + message;
+        synchronized (logTail) {
+            logTail.addLast(line);
+            while (logTail.size() > LOG_TAIL_LINES) logTail.removeFirst();
+        }
+    }
+
+    private String recentLog() {
+        StringBuilder sb = new StringBuilder();
+        synchronized (logTail) {
+            for (String line : logTail) {
+                if (sb.length() > 0) sb.append('\n');
+                sb.append(line);
+            }
+        }
+        return sb.toString();
+    }
+
+    private void showLogTail() {
+        String detail = recentLog();
+        if (detail.isEmpty()) return;
+        tvDetail.setText(detail);
+        tvDetail.setVisibility(android.view.View.VISIBLE);
+    }
+
+    /** 服务端已无法启动（native 加载失败 / qb 退出 / 端口等待超时） */
+    private boolean isFatalStartupMessage(String level, String message) {
+        if ("ERROR".equals(level)) return true;
+        return message.contains("加载库失败")
+                || message.contains("启动失败")
+                || message.contains("JNI error")
+                || message.contains("qBittorrent exited")
+                || (message.contains("WebUI 端口") && message.contains("未就绪"));
+    }
+
+    private void showStartupFailure(String message) {
+        // WebUI 已经打开后才出问题，不要覆盖用户正在用的界面
+        if (webUILoaded) return;
+        loadingLayout.setVisibility(android.view.View.VISIBLE);
+        webView.setVisibility(android.view.View.GONE);
+        fabRefresh.setVisibility(android.view.View.VISIBLE);
+        tvStatus.setText("启动失败：" + message);
+        showLogTail();
     }
 
     /** 端口就绪后，通过 API 配置 WebUI 类型 */
@@ -280,6 +346,10 @@ public class MainActivity extends AppCompatActivity {
         fabRefresh.setVisibility(android.view.View.GONE);
         webView.stopLoading();
         webView.clearCache(true);
+        // 上一次可能是 native 加载失败 (nativeMainRunning 已复位)，重试时一并重新拉起服务；
+        // 若 qb 仍在运行，Service 会直接忽略，不会产生第二个实例。
+        serviceStarted = false;
+        startQbittorrentService();
         startPortPolling();
     }
 
@@ -294,8 +364,17 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String message = intent.getStringExtra(QBittorrentService.EXTRA_MESSAGE);
-                if (message != null && message.contains("WebUI") && message.contains("就绪")) {
-                    if (!webUILoaded && !polling) {
+                if (message == null) return;
+                String level = intent.getStringExtra(QBittorrentService.EXTRA_LEVEL);
+                rememberLog(level, message);
+
+                if (isFatalStartupMessage(level, message)) {
+                    startupFailed = true;
+                    handler.post(() -> showStartupFailure(message));
+                    return;
+                }
+                if (message.contains("WebUI") && message.contains("就绪")) {
+                    if (!webUILoaded && !polling && !startupFailed) {
                         handler.post(() -> startPortPolling());
                     }
                 }
