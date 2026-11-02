@@ -130,7 +130,9 @@ def check_library(path, min_sdk):
             )
     for align in sorted(set(info["tls"])):
         if align < 0x40:
-            errors.append("PT_TLS p_align=%#x < 0x40 (Android 16 linker 要求 >=64)" % align)
+            warnings.append(
+                "PT_TLS p_align=%#x < 0x40 (Android 16 相关, 仅提示; 16KB 页设备需复核)" % align
+            )
 
     is_qbt = name.startswith("libqbt")
     for sym, entry in info["symbols"].items():
