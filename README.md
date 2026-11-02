@@ -217,7 +217,10 @@ bionic 的 arm64 `libc.so` 直到 **API 30** 才导出它们（Android 10 的 `l
 
 - Dockerfile 新增 `LEGACY_UNWIND` 参数（默认 0）。legacy 构建为 1 时，把 NDK 的静态
   `libunwind.a` 以 `--whole-archive` 方式链进 `libqbt.so`，`_Unwind_*` 变成库内定义；
-- 仍按 `ANDROID_PLATFORM=android-35` 编译，并显式加 `-Wl,-z,max-page-size=16384`，
+- libtorrent 以 `LT_ANDROID_API=28` 编译：libc++ 的 `_LIBCPP_HAS_COND_CLOCKWAIT` 在 Android
+  上要求 API ≥ 30，目标 35 时 libtorrent 会引用 API 30 的 `pthread_cond_clockwait`，
+  Android 10 及以下同样加载失败；降到 28 后走 `pthread_cond_timedwait` 回退；
+- 仍按 `ANDROID_PLATFORM=android-35` 编译 libqbt，并显式加 `-Wl,-z,max-page-size=16384`，
   不牺牲 Android 15/16 的对齐要求；
 - `ci/check-native-compat.py` 在出包前校验：`libqbt` 必须自带 unwinder，且所有库不得含
   API 高于目标 minSdk 的 GLOBAL 未定义符号；
@@ -246,7 +249,9 @@ Actions 页面另有 `Build legacy qBittorrent Android APK (Android 9+)`，**仅
 gh workflow run build-android-legacy.yml -f qb_version=all
 ```
 
-- 原生构建传 `LEGACY_UNWIND=1`（Dockerfile 将 NDK 的静态 `libunwind.a` 链进 `libqbt.so`）；
+- 原生构建传 `LEGACY_UNWIND=1`（Dockerfile 将 NDK 的静态 `libunwind.a` 链进 `libqbt.so`）
+  和 `LT_ANDROID_API=28`（libtorrent 走 libc++ 的 `pthread_cond_timedwait` 回退，
+  避免引用 API 30 的 `pthread_cond_clockwait`）；
 - Gradle 传 `-PlegacyBuild`：`minSdk 28`，设置页版本号显示 `1.2.2-legacy`；
 - 构建完成后会跑 `ci/check-native-compat.py`：若 `_Unwind_*` 未定义、或存在 API 高于 28 的
   GLOBAL 未定义符号，直接失败，不会产出「装得上但起不来」的包；

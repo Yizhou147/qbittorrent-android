@@ -25,6 +25,11 @@ ARG EXTRA_LT_CXXFLAGS=""
 # 导致 libqbt 在 Android 10 及以下 dlopen 失败。静态链入后符号变成库内定义,
 # 而 ANDROID_PLATFORM 仍是 35, 16KB 页/TLS 对齐不受影响。默认 0 = 现有构建行为不变。
 ARG LEGACY_UNWIND=0
+# legacy 构建: libtorrent 的编译目标 API。默认 35 与现有构建一致。
+# legacy 传 28: libc++ 的 _LIBCPP_HAS_COND_CLOCKWAIT 在 Android 上要求 API >= 30,
+# 目标 35 时 libtorrent 会引用 API 30 的 pthread_cond_clockwait, 在 Android 10
+# 及以下 dlopen 直接失败; 降到 28 后走 pthread_cond_timedwait 回退。
+ARG LT_ANDROID_API=35
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_HOME=/opt/android-sdk
@@ -154,8 +159,8 @@ RUN python3 /tmp/patch-libtorrent.py /build/libtorrent-src && \
     grep -q 'qbittorrent-android: explicit CA loading' /build/libtorrent-src/src/session_impl.cpp \
       && echo 'OK: libtorrent CA 补丁已应用' || echo 'WARN: 该 libtorrent 版本未应用 CA 补丁'
 
-# ===== 编译 libtorrent (API 35 target, 见文件头说明) =====
-RUN export API=35 && \
+# ===== 编译 libtorrent (target API 由 LT_ANDROID_API 决定, 见文件头说明) =====
+RUN export API=${LT_ANDROID_API} && \
     export CC=${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang && \
     export CXX=${TOOLCHAIN}/bin/aarch64-linux-android${API}-clang++ && \
     cd /build/libtorrent-src && mkdir build && cd build && \
