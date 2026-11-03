@@ -21,11 +21,6 @@ on:
           - all
           - '4.3.9'
           - '5.3.0'
-  # 临时: 新工作流在默认分支注册前无法 dispatch，先允许 dev push 触发；
-  # 首轮验证通过后删除这里。
-  push:
-    branches:
-      - dev
 
 concurrency:
   group: build-legacy-${{ github.ref }}
