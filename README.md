@@ -306,7 +306,7 @@ APK 输出：`apk-project/app/build/outputs/apk/release/app-release.apk`（已�
 
 ### 多变体共存
 
-各变体的 applicationId 不同，可以同时安装、互不影响：
+各变体的包名不同，可以同时安装、互不影响（**最新 qb 变体使用基础包名**）：
 
 | 变体 | 包名 | 桌面名称 |
 |---|---|---|
@@ -315,12 +315,15 @@ APK 输出：`apk-project/app/build/outputs/apk/release/app-release.apk`（已�
 | qb 5.2.3 | `com.qbittorrent.android.qb523` | qBittorrent 5.2.3 |
 | qb 5.2.4 | `com.qbittorrent.android.qb524` | qBittorrent 5.2.4 |
 | qb 5.3.0 | `com.qbittorrent.android.qb530` | qBittorrent 5.3.0 |
-| qb 5.3.1 | `com.qbittorrent.android.qb531` | qBittorrent 5.3.1 |
+| qb 5.3.1（最新） | `com.qbittorrent.android` | qBittorrent |
 
 注意：
 
-- 包名与 v1.2.0 之前不同（当时是 `com.qbittorrent.android`），**首次需要卸载重装**；
-  之后的新版本都能直接覆盖安装（从 v1.2.0 起 release 包用固定密钥签名，见「构建指南 → 签名」）。
+- **约定：最新的 qb 变体使用基础包名 `com.qbittorrent.android` 和应用名 `qBittorrent`**，
+  后续新增的最新版本沿用；4.3.9 / 4.6.7 与此前的 5.x 变体保留带后缀的包名。
+- 5.3.1 的包名与 v1.2.0 之前的旧版相同，安装时会覆盖/升级旧版（签名相同，配置保留）。
+- 从 v1.2.0 起 release 包用固定密钥签名，同一包名下的新版本都能直接覆盖安装
+  （见「构建指南 → 签名」）。
 - 各变体的 WebUI 默认端口都是 8080，**建议同时只运行一个**；要同时使用，请在各自设置里
   改成不同端口。
 - 默认下载目录都是系统 Download 目录（`/storage/emulated/0/Download`），同时使用时也建议分别设置。
@@ -419,8 +422,10 @@ qbittorrent-android/
 
 ### v1.2.3 (2026-11-24)
 
-- 新增 qBittorrent **5.3.1** 变体（libtorrent 2.0.14 / Qt 6.6.3 / C++20）；补丁集复用 5.3.0，
+- 新增 qBittorrent **5.3.1** 支持（libtorrent 2.0.14 / Qt 6.6.3 / C++20）；补丁集复用 5.3.0，
   050 补丁按 5.3.1 源码重新生成（上游 tracker 过滤新增 `TORRENT_USE_RTC` 分支）
+- 5.3.1 作为最新变体改用基础包名 `com.qbittorrent.android`、应用名 `qBittorrent`
+  （此前变体保留 `qb439`/`qb467`/`qb523`/`qb524`/`qb530` 后缀包名）
 - 5.3.1 真机 `ci/smoke-functional.sh` 全部通过：种子往返、离线 web seed 真实下载（SHA1 一致）、
   非法 URL / 畸形磁力 / 损坏种子分别返回 202/409/415，只报错不崩溃
 - 本 release 包含 4.3.9 / 4.6.7 / 5.3.1 三个变体 APK；5.2.3 / 5.2.4 / 5.3.0 继续使用历史版本的包

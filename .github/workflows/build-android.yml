@@ -141,7 +141,7 @@ jobs:
               echo "extra_flags=-DSTACKTRACE=OFF" >> $GITHUB_OUTPUT
               echo "extra_lt_flags="              >> $GITHUB_OUTPUT
               echo "flavor=v531"                  >> $GITHUB_OUTPUT
-              echo "app_id=com.qbittorrent.android.qb531" >> $GITHUB_OUTPUT
+              echo "app_id=com.qbittorrent.android" >> $GITHUB_OUTPUT
               ;;
             *)
               echo "Unknown version: ${{ matrix.version }}" >&2

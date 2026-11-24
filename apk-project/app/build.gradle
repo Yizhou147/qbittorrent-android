@@ -62,7 +62,7 @@ android {
         }
         v531 {
             dimension 'qb'
-            applicationIdSuffix '.qb531'
+            // 最新 qb 变体使用基础包名 com.qbittorrent.android + 通用应用名 qBittorrent
         }
     }
 
