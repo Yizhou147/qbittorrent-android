@@ -50,6 +50,8 @@ jobs:
             qbt_ref: release-5.2.3
           - version: '5.3.0'
             qbt_ref: release-5.3.0
+          - version: '5.3.1'
+            qbt_ref: release-5.3.1
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -82,7 +84,7 @@ jobs:
           grep -q "if (TARGET Qt::lupdate)" src/app/CMakeLists.txt
           echo "=== 翻译 qrc 预编译分支 ==="
           grep -q "webui_translations.qrc" src/app/CMakeLists.txt
-          if [ "${{ matrix.version }}" = "5.2.3" ] || [ "${{ matrix.version }}" = "5.3.0" ]; then
+          if [ "${{ matrix.version }}" = "5.2.3" ] || [ "${{ matrix.version }}" = "5.3.0" ] || [ "${{ matrix.version }}" = "5.3.1" ]; then
             echo "=== ${{ matrix.version }}: rcc 禁用 zstd ==="
             grep -q -- "--no-zstd" cmake/Modules/CommonConfig.cmake
             echo "=== ${{ matrix.version }}: TorrentDescriptor 异常兜底 (防添加种子/损坏文件闪退) ==="
@@ -139,7 +141,7 @@ jobs:
       fail-fast: false
       matrix:
         # 覆盖长期基线与最新版本: 4.3.9 (Qt5 + libtorrent 1.2) / 4.6.7 (Qt5 长期基线) /
-        # 5.2.3 / 5.3.0 (Qt6 运行时)。qt/libtorrent 用于冒烟测试里断言 buildInfo。
+        # 5.2.3 / 5.3.0 / 5.3.1 (Qt6 运行时)。qt/libtorrent 用于冒烟测试里断言 buildInfo。
         include:
           - version: '4.3.9'
             qt: '5.15.2'
@@ -157,6 +159,10 @@ jobs:
             qt: '6.6.3'
             libtorrent: '2.0.14'
             pkg: 'com.qbittorrent.android.qb530'
+          - version: '5.3.1'
+            qt: '6.6.3'
+            libtorrent: '2.0.14'
+            pkg: 'com.qbittorrent.android.qb531'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     # 模拟器上的 ARM 指令翻译较慢且环境不可控, 暂不作为阻塞门禁
