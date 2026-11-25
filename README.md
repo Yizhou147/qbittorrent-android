@@ -26,8 +26,7 @@
 
 ## 简介
 
-把 [qBittorrent](https://github.com/qbittorrent/qBittorrent) 编译为共享库，在 Android 应用进程内
-通过 JNI 运行，界面用 WebView 访问 WebUI。内置 [VueTorrent](https://github.com/Yizhou147/VueTorrent)
+将 [qBittorrent](https://github.com/qbittorrent/qBittorrent) 移植到Android 设备，本地运行，通过内置 WebUI 管理下载。内置 [VueTorrent](https://github.com/Yizhou147/VueTorrent)
 2.34.0 中文默认版，可切换回原生 WebUI；支持多个 qBittorrent 版本以独立包名共存。
 
 ## 下载
